@@ -3,10 +3,36 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:GameKeeper"
+
         mc:Ignorable="d"
         Title="MainWindow" Height="450" Width="800">
     <Grid>
-
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <Grid Grid.Row="0" Margin="10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <ComboBox Grid.Column="0" ItemsSource="{Binding Processes}"
+                      SelectedItem="{Binding SelectedProcess}"
+                      Margin="0,0,10,0">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate>
+                        <TextBlock>
+                            <Run Text="{Binding ProcessName, Mode=OneWay}" />
+                            <Run Text=" (" />
+                            <Run Text="{Binding Id, Mode=OneWay}" />
+                            <Run Text=")" />
+                        </TextBlock>
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+            <Button Grid.Column="1" Content="Refresh" Command="{Binding RefreshCommand}" Width="75" Margin="0,0,10,0" />
+            <Button Grid.Column="2" Content="Attach" Command="{Binding AttachCommand}" Width="75" />
+        </Grid>
     </Grid>
 </Window>
