@@ -34,5 +34,9 @@
             <Button Grid.Column="1" Content="Refresh" Command="{Binding RefreshCommand}" Width="75" Margin="0,0,10,0" />
             <Button Grid.Column="2" Content="Attach" Command="{Binding AttachCommand}" Width="75" />
         </Grid>
+        <StackPanel Grid.Row="1" Margin="10">
+            <TextBlock Text="{Binding WndProcAddress, StringFormat='WndProc: 0x{0:X}'}" 
+                       HorizontalAlignment="Center" FontSize="18" FontWeight="Bold"/>
+        </StackPanel>
     </Grid>
 </Window>

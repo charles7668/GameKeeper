@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Platforms>AnyCPU;x86</Platforms>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DllLoader\DllLoader.vcxproj">
+      <Private>True</Private>
+      <CopyLocalSatelliteAssemblies></CopyLocalSatelliteAssemblies>
+    </ProjectReference>
+    <ProjectReference Include="..\GameKeeperCore\GameKeeperCore.vcxproj">
+      <Private>True</Private>
+      <CopyLocalSatelliteAssemblies></CopyLocalSatelliteAssemblies>
+    </ProjectReference>
+  </ItemGroup>
+
+</Project>

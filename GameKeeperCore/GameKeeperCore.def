@@ -1,0 +1,4 @@
+LIBRARY GameKeeperCore
+EXPORTS
+    Attach
+    Detach
