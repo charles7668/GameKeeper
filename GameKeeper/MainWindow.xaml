@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
+        Title="{Binding Title}" Height="450" Width="800">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -48,10 +48,10 @@
                             <Run Text="{Binding Id, Mode=OneWay}" />
                             <Run Text=")" />
                         </TextBlock>
-                        <Button Grid.Column="1" Content="Detach" 
-                                Command="{Binding DataContext.DetachCommand, RelativeSource={RelativeSource AncestorType=Window}}" 
-                                CommandParameter="{Binding}" 
-                                Margin="10,0,0,0" Padding="5,2"/>
+                        <Button Grid.Column="1" Content="Detach"
+                                Command="{Binding DataContext.DetachCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="{Binding}"
+                                Margin="10,0,0,0" Padding="5,2" />
                     </Grid>
                 </DataTemplate>
             </ListView.ItemTemplate>

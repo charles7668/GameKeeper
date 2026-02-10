@@ -25,6 +25,8 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private Process? _selectedProcess;
 
+    public string Title => $"GameKeeper ({(Environment.Is64BitProcess ? "x64" : "x86")})";
+
     [RelayCommand]
     private void Attach()
     {
@@ -51,7 +53,7 @@ public partial class MainViewModel : ObservableObject
     {
         Processes.Clear();
         var processList = Process.GetProcesses()
-            .Where(p => p.MainWindowHandle != nint.Zero)
+            .Where(p => p.MainWindowHandle != nint.Zero && ProcessUtils.IsSameArchitecture(p))
             .OrderBy(p => p.ProcessName);
 
         foreach (var p in processList)
