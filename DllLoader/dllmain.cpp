@@ -6,7 +6,11 @@
 #include "DllLoader.h"
 #pragma comment(lib, "psapi.lib")
 
-static const TCHAR* DLL_NAME = _T("GameKeeperCore.dll");
+#ifdef _WIN64
+static const TCHAR* DLL_NAME = _T("GameKeeperCore_x64.dll");
+#else
+static const TCHAR* DLL_NAME = _T("GameKeeperCore_x86.dll");
+#endif
 
 DWORD_PTR GetFunctionOffset(const char* dllPath, const char* funcName, const char* fallbackName)
 {
@@ -110,21 +114,29 @@ bool GK_TryDetach(DWORD dwProcessId, const char* dllPath)
 	return RunRemoteAction(dwProcessId, dllPath, "Detach", "_Detach@4");
 }
 
+#include <cstdio>
+
 bool GK_InjectCoreDll(DWORD dwProcessId, const char* dllPath)
 {
 	HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, dwProcessId);
-	if (!hProcess) return false;
+	if (!hProcess)
+	{
+		fprintf(stderr, "OpenProcess failed: %lu\n", GetLastError());
+		return false;
+	}
 
 	size_t pathLen = strlen(dllPath) + 1;
 	LPVOID pRemoteBuf = VirtualAllocEx(hProcess, nullptr, pathLen, MEM_COMMIT, PAGE_READWRITE);
 	if (!pRemoteBuf)
 	{
+		fprintf(stderr, "VirtualAllocEx failed: %lu\n", GetLastError());
 		CloseHandle(hProcess);
 		return false;
 	}
 
 	if (!WriteProcessMemory(hProcess, pRemoteBuf, dllPath, pathLen, nullptr))
 	{
+		fprintf(stderr, "WriteProcessMemory failed: %lu\n", GetLastError());
 		VirtualFreeEx(hProcess, pRemoteBuf, 0, MEM_RELEASE);
 		CloseHandle(hProcess);
 		return false;
@@ -138,6 +150,11 @@ bool GK_InjectCoreDll(DWORD dwProcessId, const char* dllPath)
 	{
 		WaitForSingleObject(hThread, INFINITE);
 		CloseHandle(hThread);
+		fprintf(stderr, "Injection successful\n");
+	}
+	else
+	{
+		fprintf(stderr, "CreateRemoteThread failed: %lu\n", GetLastError());
 	}
 
 	VirtualFreeEx(hProcess, pRemoteBuf, 0, MEM_RELEASE);

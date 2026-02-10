@@ -9,6 +9,21 @@ public static class ProcessUtils
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool IsWow64Process([In] IntPtr hProcess, [Out] out bool wow64Process);
 
+    public static bool Is64BitProcess(Process process)
+    {
+        if (!Environment.Is64BitOperatingSystem) return false;
+
+        try
+        {
+            if (!IsWow64Process(process.Handle, out var isWow64)) return false;
+            return !isWow64;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public static bool IsSameArchitecture(Process process)
     {
         if (!Environment.Is64BitOperatingSystem)
@@ -16,21 +31,6 @@ public static class ProcessUtils
             return true; // 32-bit OS, everything is 32-bit
         }
 
-        try
-        {
-            if (!IsWow64Process(process.Handle, out var isWow64))
-            {
-                return false; // Function failed
-            }
-
-            var isCurrentProcess64Bit = Environment.Is64BitProcess;
-            var isTargetProcess64Bit = !isWow64;
-
-            return isCurrentProcess64Bit == isTargetProcess64Bit;
-        }
-        catch
-        {
-            return false; // Access denied or process exited
-        }
+        return Environment.Is64BitProcess == Is64BitProcess(process);
     }
 }

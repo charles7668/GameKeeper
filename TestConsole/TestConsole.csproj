@@ -25,9 +25,11 @@
       <NativeConfiguration Condition="'$(Configuration)' == 'Release'">Release</NativeConfiguration>
       <NativeOutputPath Condition="'$(NativePlatform)' == 'x64'">..\$(NativePlatform)\$(NativeConfiguration)\</NativeOutputPath>
       <NativeOutputPath Condition="'$(NativePlatform)' == 'Win32'">..\$(NativeConfiguration)\</NativeOutputPath>
+      <NativeSuffix Condition="'$(NativePlatform)' == 'x64'">_x64</NativeSuffix>
+      <NativeSuffix Condition="'$(NativePlatform)' == 'Win32'">_x86</NativeSuffix>
     </PropertyGroup>
     <ItemGroup>
-      <NativeDlls Include="$(NativeOutputPath)DllLoader.dll;$(NativeOutputPath)GameKeeperCore.dll" />
+      <NativeDlls Include="$(NativeOutputPath)DllLoader$(NativeSuffix).dll;$(NativeOutputPath)GameKeeperCore$(NativeSuffix).dll" />
     </ItemGroup>
     <Copy SourceFiles="@(NativeDlls)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
   </Target>

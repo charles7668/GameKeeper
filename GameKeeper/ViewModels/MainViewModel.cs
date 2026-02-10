@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GameKeeper.Services;
@@ -32,9 +33,14 @@ public partial class MainViewModel : ObservableObject
     {
         if (SelectedProcess != null && !AttachedProcesses.Contains(SelectedProcess))
         {
-            if (_gameKeeperService.Attach(SelectedProcess.Id))
+            var result = _gameKeeperService.Attach(SelectedProcess.Id);
+            if (result.Success)
             {
                 AttachedProcesses.Add(SelectedProcess);
+            }
+            else
+            {
+                MessageBox.Show(result.ErrorMessage, "Attach Failed", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
     }
@@ -42,9 +48,14 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void Detach(Process process)
     {
-        if (_gameKeeperService.Detach(process.Id))
+        var result = _gameKeeperService.Detach(process.Id);
+        if (result.Success)
         {
             AttachedProcesses.Remove(process);
+        }
+        else
+        {
+            MessageBox.Show(result.ErrorMessage, "Detach Failed", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -53,7 +64,7 @@ public partial class MainViewModel : ObservableObject
     {
         Processes.Clear();
         var processList = Process.GetProcesses()
-            .Where(p => p.MainWindowHandle != nint.Zero && ProcessUtils.IsSameArchitecture(p))
+            .Where(p => p.MainWindowHandle != nint.Zero)
             .OrderBy(p => p.ProcessName);
 
         foreach (var p in processList)

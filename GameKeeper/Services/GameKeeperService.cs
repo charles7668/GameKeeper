@@ -1,23 +1,70 @@
+using System.Diagnostics;
 using System.IO;
 
 namespace GameKeeper.Services;
 
 public class GameKeeperService
 {
-    private readonly string _coreDllPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "GameKeeperCore.dll");
-
-    public bool Attach(int processId)
+    private (bool Success, string ErrorMessage) RunInjector(int processId, string method)
     {
-        if (DllLoaderApi.GK_InjectCoreDll(processId, _coreDllPath))
+        try
         {
-            return DllLoaderApi.GK_TryAttach(processId, _coreDllPath);
-        }
+            var process = Process.GetProcessById(processId);
+            var is64Bit = ProcessUtils.Is64BitProcess(process);
+            var suffix = is64Bit ? "x64" : "x86";
 
-        return false;
+            var injectorPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"Injector_{suffix}.exe");
+            var dllPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, $"GameKeeperCore_{suffix}.dll");
+
+            if (!File.Exists(injectorPath))
+            {
+                return (false, $"Injector not found at: {injectorPath}");
+            }
+
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = injectorPath,
+                Arguments = $"{processId} \"{dllPath}\" {method}",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            };
+
+            using var injectorProcess = Process.Start(startInfo);
+            if (injectorProcess == null)
+            {
+                return (false, "Failed to start injector process.");
+            }
+
+            // Capture output and error
+            // Read to end before waiting to avoid deadlocks
+            var output = injectorProcess.StandardOutput.ReadToEnd();
+            var error = injectorProcess.StandardError.ReadToEnd();
+
+            injectorProcess.WaitForExit();
+
+            if (injectorProcess.ExitCode == 0)
+            {
+                return (true, string.Empty);
+            }
+
+            var message = string.IsNullOrWhiteSpace(error) ? output : $"{output}\nError: {error}";
+            return (false, message.Trim());
+        }
+        catch (Exception ex)
+        {
+            return (false, $"Exception: {ex.Message}");
+        }
     }
 
-    public bool Detach(int processId)
+    public (bool Success, string ErrorMessage) Attach(int processId)
     {
-        return DllLoaderApi.GK_TryDetach(processId, _coreDllPath);
+        return RunInjector(processId, "attach");
+    }
+
+    public (bool Success, string ErrorMessage) Detach(int processId)
+    {
+        return RunInjector(processId, "detach");
     }
 }

@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "GameKeeper": {
+      "commandName": "Project",
+      "nativeDebugging": true
+    }
+  }
+}

@@ -9,6 +9,10 @@
     <Platform Solution="Debug|x86" Project="x86" />
   </Project>
   <Project Path="GameKeeperCore/GameKeeperCore.vcxproj" Id="caca3826-4d7c-4348-9111-c608f8c1a956" />
+  <Project Path="Injector/Injector.csproj" Id="c9b7aebb-b809-435f-9dc5-f516a7b7c6a0">
+    <Platform Solution="Debug|x64" Project="x64" />
+    <Platform Solution="Debug|x86" Project="x86" />
+  </Project>
   <Project Path="TestConsole/TestConsole.csproj" Id="d58dac30-57fc-47dd-b2d2-44a7f901cb99">
     <Platform Solution="Debug|x64" Project="x64" />
     <Platform Solution="Debug|x86" Project="x86" />
