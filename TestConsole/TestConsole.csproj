@@ -10,13 +10,26 @@
 
   <ItemGroup>
     <ProjectReference Include="..\DllLoader\DllLoader.vcxproj">
-      <Private>True</Private>
-      <CopyLocalSatelliteAssemblies></CopyLocalSatelliteAssemblies>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
     <ProjectReference Include="..\GameKeeperCore\GameKeeperCore.vcxproj">
-      <Private>True</Private>
-      <CopyLocalSatelliteAssemblies></CopyLocalSatelliteAssemblies>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
   </ItemGroup>
+
+  <Target Name="CopyNativeUtils" AfterTargets="Build">
+    <PropertyGroup>
+      <NativePlatform Condition="'$(Platform)' == 'x64'">x64</NativePlatform>
+      <NativePlatform Condition="'$(Platform)' == 'x86' or '$(Platform)' == 'AnyCPU'">Win32</NativePlatform>
+      <NativeConfiguration Condition="'$(Configuration)' == 'Debug'">Debug</NativeConfiguration>
+      <NativeConfiguration Condition="'$(Configuration)' == 'Release'">Release</NativeConfiguration>
+      <NativeOutputPath Condition="'$(NativePlatform)' == 'x64'">..\$(NativePlatform)\$(NativeConfiguration)\</NativeOutputPath>
+      <NativeOutputPath Condition="'$(NativePlatform)' == 'Win32'">..\$(NativeConfiguration)\</NativeOutputPath>
+    </PropertyGroup>
+    <ItemGroup>
+      <NativeDlls Include="$(NativeOutputPath)DllLoader.dll;$(NativeOutputPath)GameKeeperCore.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(NativeDlls)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
 
 </Project>
