@@ -1,8 +1,8 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using GameKeeper.Services;
 
 namespace GameKeeper.ViewModels;
 
@@ -10,10 +10,14 @@ public partial class MainViewModel : ObservableObject
 {
     public MainViewModel()
     {
+        _gameKeeperService = new GameKeeperService();
         Refresh();
     }
 
-    private const int GWLP_WNDPROC = -4;
+    private readonly GameKeeperService _gameKeeperService;
+
+    [ObservableProperty]
+    private ObservableCollection<Process> _attachedProcesses = [];
 
     [ObservableProperty]
     private ObservableCollection<Process> _processes = [];
@@ -21,33 +25,26 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private Process? _selectedProcess;
 
-    [ObservableProperty]
-    private nint _wndProcAddress;
-
     [RelayCommand]
     private void Attach()
     {
-        if (SelectedProcess != null)
+        if (SelectedProcess != null && !AttachedProcesses.Contains(SelectedProcess))
         {
-            WndProcAddress = GetWindowLongPtr(SelectedProcess.MainWindowHandle, GWLP_WNDPROC);
+            if (_gameKeeperService.Attach(SelectedProcess.Id))
+            {
+                AttachedProcesses.Add(SelectedProcess);
+            }
         }
     }
 
-    [DllImport("user32.dll", EntryPoint = "GetWindowLong")]
-    private static extern nint GetWindowLong32(nint hWnd, int nIndex);
-
-    private static nint GetWindowLongPtr(nint hWnd, int nIndex)
+    [RelayCommand]
+    private void Detach(Process process)
     {
-        if (IntPtr.Size == 8)
+        if (_gameKeeperService.Detach(process.Id))
         {
-            return GetWindowLongPtr64(hWnd, nIndex);
+            AttachedProcesses.Remove(process);
         }
-
-        return GetWindowLong32(hWnd, nIndex);
     }
-
-    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtr")]
-    private static extern nint GetWindowLongPtr64(nint hWnd, int nIndex);
 
     [RelayCommand]
     private void Refresh()

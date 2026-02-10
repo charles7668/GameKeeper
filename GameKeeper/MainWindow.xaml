@@ -34,9 +34,27 @@
             <Button Grid.Column="1" Content="Refresh" Command="{Binding RefreshCommand}" Width="75" Margin="0,0,10,0" />
             <Button Grid.Column="2" Content="Attach" Command="{Binding AttachCommand}" Width="75" />
         </Grid>
-        <StackPanel Grid.Row="1" Margin="10">
-            <TextBlock Text="{Binding WndProcAddress, StringFormat='WndProc: 0x{0:X}'}" 
-                       HorizontalAlignment="Center" FontSize="18" FontWeight="Bold"/>
-        </StackPanel>
+        <ListView Grid.Row="1" Margin="10" ItemsSource="{Binding AttachedProcesses}">
+            <ListView.ItemTemplate>
+                <DataTemplate>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock VerticalAlignment="Center">
+                            <Run Text="{Binding ProcessName, Mode=OneWay}" />
+                            <Run Text=" (" />
+                            <Run Text="{Binding Id, Mode=OneWay}" />
+                            <Run Text=")" />
+                        </TextBlock>
+                        <Button Grid.Column="1" Content="Detach" 
+                                Command="{Binding DataContext.DetachCommand, RelativeSource={RelativeSource AncestorType=Window}}" 
+                                CommandParameter="{Binding}" 
+                                Margin="10,0,0,0" Padding="5,2"/>
+                    </Grid>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
     </Grid>
 </Window>
