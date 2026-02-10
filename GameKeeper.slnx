@@ -1,15 +1,16 @@
 <Solution>
   <Configurations>
-    <Platform Name="Any CPU" />
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
   <Project Path="DllLoader/DllLoader.vcxproj" Id="3d3ddfaa-f399-4f22-96fe-33a4086f7886" />
   <Project Path="GameKeeper/GameKeeper.csproj">
+    <Platform Solution="Debug|x64" Project="x64" />
     <Platform Solution="Debug|x86" Project="x86" />
   </Project>
   <Project Path="GameKeeperCore/GameKeeperCore.vcxproj" Id="caca3826-4d7c-4348-9111-c608f8c1a956" />
   <Project Path="TestConsole/TestConsole.csproj" Id="d58dac30-57fc-47dd-b2d2-44a7f901cb99">
+    <Platform Solution="Debug|x64" Project="x64" />
     <Platform Solution="Debug|x86" Project="x86" />
   </Project>
 </Solution>
