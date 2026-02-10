@@ -2,7 +2,25 @@
 #include <windows.h>
 #include "GameKeeperCore.h"
 
+#include <detours.h>
+
 WNDPROC g_OriginalWndProc = nullptr;
+HWND g_hMainWindow = nullptr;
+
+// Function pointer for the original GetForegroundWindow
+static HWND (WINAPI*RealGetForegroundWindow)(void) = GetForegroundWindow;
+
+HWND GetMainWindow();
+
+// Detour function
+HWND WINAPI HookedGetForegroundWindow(void)
+{
+	if (g_hMainWindow)
+	{
+		return g_hMainWindow;
+	}
+	return RealGetForegroundWindow();
+}
 
 LRESULT CALLBACK NewWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
@@ -47,13 +65,18 @@ HWND GetMainWindow()
 
 DWORD WINAPI Attach(LPVOID lpParam)
 {
-	HWND hWnd = GetMainWindow();
-	if (hWnd)
+	DetourTransactionBegin();
+	DetourUpdateThread(GetCurrentThread());
+	DetourAttach(&(PVOID&)RealGetForegroundWindow, HookedGetForegroundWindow);
+	DetourTransactionCommit();
+
+	g_hMainWindow = GetMainWindow();
+	if (g_hMainWindow)
 	{
 #ifdef _WIN64
-		g_OriginalWndProc = (WNDPROC)SetWindowLongPtr(hWnd, GWLP_WNDPROC, (LONG_PTR)NewWndProc);
+		g_OriginalWndProc = (WNDPROC)SetWindowLongPtr(g_hMainWindow, GWLP_WNDPROC, (LONG_PTR)NewWndProc);
 #else
-		g_OriginalWndProc = (WNDPROC)SetWindowLong(hWnd, GWL_WNDPROC, (LONG)NewWndProc);
+		g_OriginalWndProc = (WNDPROC)SetWindowLong(g_hMainWindow, GWL_WNDPROC, (LONG)NewWndProc);
 #endif
 	}
 
@@ -62,15 +85,21 @@ DWORD WINAPI Attach(LPVOID lpParam)
 
 DWORD WINAPI Detach(LPVOID lpParam)
 {
-	HWND hWnd = GetMainWindow();
-	if (hWnd && g_OriginalWndProc)
+	// Remove Detour
+	DetourTransactionBegin();
+	DetourUpdateThread(GetCurrentThread());
+	DetourDetach(&(PVOID&)RealGetForegroundWindow, HookedGetForegroundWindow);
+	DetourTransactionCommit();
+
+	if (g_hMainWindow && g_OriginalWndProc)
 	{
 #ifdef _WIN64
-		SetWindowLongPtr(hWnd, GWLP_WNDPROC, (LONG_PTR)g_OriginalWndProc);
+		SetWindowLongPtr(g_hMainWindow, GWLP_WNDPROC, (LONG_PTR)g_OriginalWndProc);
 #else
-		SetWindowLong(hWnd, GWL_WNDPROC, (LONG)g_OriginalWndProc);
+		SetWindowLong(g_hMainWindow, GWL_WNDPROC, (LONG)g_OriginalWndProc);
 #endif
 		g_OriginalWndProc = nullptr;
+		g_hMainWindow = nullptr;
 	}
 
 	return 0;
