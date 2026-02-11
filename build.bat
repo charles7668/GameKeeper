@@ -18,6 +18,15 @@ echo [Info] Found MSBuild at: %MSBUILD_PATH%
 echo.
 
 REM ==============================================================================
+REM 1.5. Prepare Output Directory (Clean before build)
+REM ==============================================================================
+echo [Info] Cleaning output folder...
+if exist "output" (
+  rmdir /s /q "output"
+)
+mkdir "output"
+
+REM ==============================================================================
 REM 2. Build DllLoader (C++)
 REM    x86 (Win32) and x64
 REM ==============================================================================
@@ -62,14 +71,9 @@ echo [Build] GameKeeper (x86)...
 if %ERRORLEVEL% NEQ 0 ( echo [Error] Failed to build GameKeeper x86 & exit /b %ERRORLEVEL% )
 
 REM ==============================================================================
-REM 6. Prepare Output Directory
+REM 6. Prepare Output Directory (Already done)
 REM ==============================================================================
 echo.
-echo [Deploy] Preparing output folder...
-if exist "output" (
-  rmdir /s /q "output"
-)
-mkdir "output"
 
 REM ==============================================================================
 REM 7. Copy Artifacts
