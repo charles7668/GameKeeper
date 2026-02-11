@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Reflection;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -26,7 +27,15 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private Process? _selectedProcess;
 
-    public string Title => $"GameKeeper ({(Environment.Is64BitProcess ? "x64" : "x86")})";
+    public string Title
+    {
+        get
+        {
+            var version = Assembly.GetExecutingAssembly().GetName().Version;
+            var versionString = version != null ? $"v{version.Major}.{version.Minor}.{version.Build}" : "v1.0.0";
+            return $"GameKeeper {versionString}";
+        }
+    }
 
     [RelayCommand]
     private void Attach()
