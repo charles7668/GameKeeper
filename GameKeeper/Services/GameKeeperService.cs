@@ -65,6 +65,15 @@ public class GameKeeperService
 
     public (bool Success, string ErrorMessage) Detach(int processId)
     {
+        try
+        {
+            using var _ = Process.GetProcessById(processId);
+        }
+        catch (ArgumentException)
+        {
+            return (true, string.Empty);
+        }
+
         return RunInjector(processId, "detach");
     }
 }
