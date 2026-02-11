@@ -5,7 +5,8 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
 
         mc:Ignorable="d"
-        Title="{Binding Title}" Height="450" Width="800">
+        Title="{Binding Title}" Height="450" Width="800"
+        Icon="Assets/icon.ico">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
