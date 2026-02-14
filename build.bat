@@ -26,6 +26,14 @@ if exist "output" (
 )
 mkdir "output"
 
+echo [Info] Cleaning release folders...
+if exist "Release" (
+    rmdir /s /q "Release"
+)
+if exist "x64\Release" (
+    rmdir /s /q "x64\Release"
+)
+
 REM ==============================================================================
 REM 2. Build DllLoader (C++)
 REM    x86 (Win32) and x64

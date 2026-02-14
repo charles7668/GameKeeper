@@ -22,7 +22,7 @@ for /f "usebackq tokens=*" %%v in (`powershell -Command "$xml = [xml](Get-Conten
 
 echo [Info] Detected version: %VERSION%
 
-set "ZIP_NAME=GameKeeperCore-v%VERSION%.zip"
+set "ZIP_NAME=GameKeeper-v%VERSION%.zip"
 
 REM ==============================================================================
 REM 2. Check Output Directory
