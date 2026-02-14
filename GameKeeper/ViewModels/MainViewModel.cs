@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using GameKeeper.Services;
 
+using System.Security.Principal;
 namespace GameKeeper.ViewModels;
 
 public partial class MainViewModel : ObservableObject
@@ -14,6 +15,14 @@ public partial class MainViewModel : ObservableObject
     {
         _gameKeeperService = new GameKeeperService();
         Refresh();
+        IsRunAsAdminVisible = !IsRunningAsAdministrator();
+    }
+
+    private bool IsRunningAsAdministrator()
+    {
+        var identity = WindowsIdentity.GetCurrent();
+        var principal = new WindowsPrincipal(identity);
+        return principal.IsInRole(WindowsBuiltInRole.Administrator);
     }
 
     private readonly GameKeeperService _gameKeeperService;
@@ -26,6 +35,9 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private Process? _selectedProcess;
+
+    [ObservableProperty]
+    private bool _isRunAsAdminVisible;
 
     public string Title
     {
@@ -79,6 +91,27 @@ public partial class MainViewModel : ObservableObject
         foreach (var p in processList)
         {
             Processes.Add(p);
+        }
+    }
+
+    [RelayCommand]
+    private void RunAsAdmin()
+    {
+        var exeName = Process.GetCurrentProcess().MainModule?.FileName;
+        if (exeName != null)
+        {
+            ProcessStartInfo startInfo = new ProcessStartInfo(exeName);
+            startInfo.UseShellExecute = true;
+            startInfo.Verb = "runas";
+            try
+            {
+                Process.Start(startInfo);
+                Application.Current.Shutdown();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
     }
 }

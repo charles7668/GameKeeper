@@ -7,6 +7,10 @@
         mc:Ignorable="d"
         Title="{Binding Title}" Height="450" Width="800"
         Icon="Assets/icon.ico">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+    </Window.Resources>
+    
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -15,6 +19,7 @@
         <Grid Grid.Row="0" Margin="10">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
@@ -34,6 +39,8 @@
             </ComboBox>
             <Button Grid.Column="1" Content="Refresh" Command="{Binding RefreshCommand}" Width="75" Margin="0,0,10,0" />
             <Button Grid.Column="2" Content="Attach" Command="{Binding AttachCommand}" Width="75" />
+            <Button Grid.Column="3" Content="Run as Admin" Command="{Binding RunAsAdminCommand}" Margin="10,0,0,0" Padding="5,0"
+                    Visibility="{Binding IsRunAsAdminVisible, Converter={StaticResource BooleanToVisibilityConverter}}"/>
         </Grid>
         <ListView Grid.Row="1" Margin="10" ItemsSource="{Binding AttachedProcesses}">
             <ListView.ItemTemplate>
