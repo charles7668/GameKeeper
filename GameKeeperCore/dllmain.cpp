@@ -32,6 +32,10 @@ LRESULT CALLBACK NewWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	{
 		return 0;
 	}
+	else if (uMsg == WM_ACTIVATEAPP)
+	{
+		if (wParam == FALSE) return 0;
+	}
 	else if (uMsg == WM_NCACTIVATE)
 	{
 		if (wParam == FALSE) return CallWindowProc(g_OriginalWndProc, hWnd, uMsg, TRUE, lParam);
