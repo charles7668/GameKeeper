@@ -31,11 +31,11 @@ REM 2. Build DllLoader (C++)
 REM    x86 (Win32) and x64
 REM ==============================================================================
 echo [Build] DllLoader (x86)...
-"%MSBUILD_PATH%" "DllLoader\DllLoader.vcxproj" -t:Rebuild -p:Configuration=Release -p:Platform=Win32
+"%MSBUILD_PATH%" "DllLoader\DllLoader.vcxproj" -t:build -p:Configuration=Release -p:Platform=Win32
 if %ERRORLEVEL% NEQ 0 ( echo [Error] Failed to build DllLoader x86 & exit /b %ERRORLEVEL% )
 
 echo [Build] DllLoader (x64)...
-"%MSBUILD_PATH%" "DllLoader\DllLoader.vcxproj" -t:Rebuild -p:Configuration=Release -p:Platform=x64
+"%MSBUILD_PATH%" "DllLoader\DllLoader.vcxproj" -t:build -p:Configuration=Release -p:Platform=x64
 if %ERRORLEVEL% NEQ 0 ( echo [Error] Failed to build DllLoader x64 & exit /b %ERRORLEVEL% )
 
 REM ==============================================================================
@@ -43,11 +43,11 @@ REM 3. Build GameKeeperCore (C++)
 REM    x86 (Win32) and x64
 REM ==============================================================================
 echo [Build] GameKeeperCore (x86)...
-"%MSBUILD_PATH%" "GameKeeperCore\GameKeeperCore.vcxproj" -t:Rebuild -p:Configuration=Release -p:Platform=Win32
+"%MSBUILD_PATH%" "GameKeeperCore\GameKeeperCore.vcxproj" -t:build -p:Configuration=Release -p:Platform=Win32
 if %ERRORLEVEL% NEQ 0 ( echo [Error] Failed to build GameKeeperCore x86 & exit /b %ERRORLEVEL% )
 
 echo [Build] GameKeeperCore (x64)...
-"%MSBUILD_PATH%" "GameKeeperCore\GameKeeperCore.vcxproj" -t:Rebuild -p:Configuration=Release -p:Platform=x64
+"%MSBUILD_PATH%" "GameKeeperCore\GameKeeperCore.vcxproj" -t:build -p:Configuration=Release -p:Platform=x64
 if %ERRORLEVEL% NEQ 0 ( echo [Error] Failed to build GameKeeperCore x64 & exit /b %ERRORLEVEL% )
 
 REM ==============================================================================
@@ -55,11 +55,11 @@ REM 4. Build Injector (C# .NET 8)
 REM    x86 and x64
 REM ==============================================================================
 echo [Build] Injector (x86)...
-"%MSBUILD_PATH%" "Injector\Injector.csproj" -t:Rebuild -p:Configuration=Release -p:Platform=x86 -restore
+"%MSBUILD_PATH%" "Injector\Injector.csproj" -t:build -p:Configuration=Release -p:Platform=x86 -restore
 if %ERRORLEVEL% NEQ 0 ( echo [Error] Failed to build Injector x86 & exit /b %ERRORLEVEL% )
 
 echo [Build] Injector (x64)...
-"%MSBUILD_PATH%" "Injector\Injector.csproj" -t:Rebuild -p:Configuration=Release -p:Platform=x64 -restore
+"%MSBUILD_PATH%" "Injector\Injector.csproj" -t:build -p:Configuration=Release -p:Platform=x64 -restore
 if %ERRORLEVEL% NEQ 0 ( echo [Error] Failed to build Injector x64 & exit /b %ERRORLEVEL% )
 
 REM ==============================================================================
@@ -67,7 +67,7 @@ REM 5. Build GameKeeper (C# .NET 8)
 REM    x86 only
 REM ==============================================================================
 echo [Build] GameKeeper (x86)...
-"%MSBUILD_PATH%" "GameKeeper\GameKeeper.csproj" -t:Rebuild -p:Configuration=Release -p:Platform=x86 -restore
+"%MSBUILD_PATH%" "GameKeeper\GameKeeper.csproj" -t:build -p:Configuration=Release -p:Platform=x86 -restore
 if %ERRORLEVEL% NEQ 0 ( echo [Error] Failed to build GameKeeper x86 & exit /b %ERRORLEVEL% )
 
 REM ==============================================================================
