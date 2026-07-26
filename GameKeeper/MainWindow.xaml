@@ -49,6 +49,7 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <TextBlock VerticalAlignment="Center">
                             <Run Text="{Binding ProcessName, Mode=OneWay}" />
@@ -58,6 +59,10 @@
                         </TextBlock>
                         <Button Grid.Column="1" Content="Detach"
                                 Command="{Binding DataContext.DetachCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                CommandParameter="{Binding}"
+                                Margin="10,0,0,0" Padding="5,2" />
+                        <Button Grid.Column="2" Content="Capture"
+                                Command="{Binding DataContext.CaptureCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                 CommandParameter="{Binding}"
                                 Margin="10,0,0,0" Padding="5,2" />
                     </Grid>

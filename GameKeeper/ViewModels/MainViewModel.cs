@@ -67,6 +67,21 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
+    private void Capture(Process process)
+    {
+        if (process == null)
+        {
+            return;
+        }
+
+        var captureWindow = new CaptureWindow(process)
+        {
+            Owner = Application.Current.MainWindow
+        };
+        captureWindow.Show();
+    }
+
+    [RelayCommand]
     private void Detach(Process process)
     {
         var result = _gameKeeperService.Detach(process.Id);

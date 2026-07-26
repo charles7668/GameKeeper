@@ -1,0 +1,23 @@
+﻿<Window x:Class="GameKeeper.CaptureWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Window Capture" Height="540" Width="960"
+        Background="#111111"
+        Icon="Assets/icon.ico">
+    <Grid>
+        <Image x:Name="CaptureImage"
+               Stretch="Uniform"
+               SnapsToDevicePixels="True"
+               UseLayoutRounding="True" />
+        <Border x:Name="StatusOverlay"
+                Background="#CC111111"
+                Panel.ZIndex="1">
+            <TextBlock x:Name="StatusText"
+                       Text="Starting capture..."
+                       Foreground="White"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       FontSize="16" />
+        </Border>
+    </Grid>
+</Window>
