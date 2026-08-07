@@ -37,6 +37,9 @@ public partial class CaptureWindow
     private const int WmRButtonUp = 0x0205;
     private const int WmMButtonDown = 0x0207;
     private const int WmMButtonUp = 0x0208;
+    private const int WmActivate = 0x0006;
+    private const int WmSetFocus = 0x0007;
+    private const int WmActivateApp = 0x001C;
     private const int WmKeyDown = 0x0100;
     private const int WmKeyUp = 0x0101;
     private const int WmMouseMove = 0x0200;
@@ -47,6 +50,7 @@ public partial class CaptureWindow
     private const int VkShift = 0x10;
     private const int VkControl = 0x11;
     private const int VkMenu = 0x12;
+    private const int WaActive = 1;
     private static readonly int SetCursorOverrideMessage = RegisterWindowMessage("GameKeeper.SetCursorOverride");
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -83,6 +87,8 @@ public partial class CaptureWindow
             _captureService.Closed += (_, _) => Close();
             _captureService.Start();
             SetTargetCursorOverride(true);
+            ActivateTargetWindow(_process.MainWindowHandle);
+            SetFocus(_process.MainWindowHandle);
         }
         catch (Exception ex)
         {
@@ -433,6 +439,13 @@ public partial class CaptureWindow
         PostMessage(_process.MainWindowHandle, SetCursorOverrideMessage, enabled ? new IntPtr(1) : IntPtr.Zero, IntPtr.Zero);
     }
 
+    private static void ActivateTargetWindow(IntPtr hwnd)
+    {
+        PostMessage(hwnd, WmActivateApp, new IntPtr(1), IntPtr.Zero);
+        PostMessage(hwnd, WmActivate, new IntPtr(WaActive), IntPtr.Zero);
+        PostMessage(hwnd, WmSetFocus, IntPtr.Zero, IntPtr.Zero);
+    }
+
     private bool TryGetMainClientPosition(Point imagePosition, IntPtr hwnd, out int x, out int y)
     {
         x = 0;
@@ -659,6 +672,9 @@ public partial class CaptureWindow
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool PostMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern IntPtr SetFocus(IntPtr hWnd);
 
     [DllImport("user32.dll")]
     private static extern uint MapVirtualKey(uint uCode, uint uMapType);
