@@ -10,6 +10,7 @@ HWND g_hMainWindow = nullptr;
 // Function pointer for the original GetForegroundWindow
 static HWND (WINAPI*RealGetForegroundWindow)(void) = GetForegroundWindow;
 static HWND (WINAPI*RealGetActiveWindow)(void) = GetActiveWindow;
+static HWND (WINAPI*RealGetFocus)(void) = GetFocus;
 
 HWND GetMainWindow();
 
@@ -30,6 +31,15 @@ HWND WINAPI HookedGetActiveWindow(void)
 		return g_hMainWindow;
 	}
 	return RealGetActiveWindow();
+}
+
+HWND WINAPI HookedGetFocus(void)
+{
+	if (g_hMainWindow)
+	{
+		return g_hMainWindow;
+	}
+	return RealGetFocus();
 }
 
 LRESULT CALLBACK NewWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -83,6 +93,7 @@ DWORD WINAPI Attach(LPVOID lpParam)
 	DetourUpdateThread(GetCurrentThread());
 	DetourAttach(&(PVOID&)RealGetForegroundWindow, HookedGetForegroundWindow);
 	DetourAttach(&(PVOID&)RealGetActiveWindow, HookedGetActiveWindow);
+	DetourAttach(&(PVOID&)RealGetFocus, HookedGetFocus);
 	DetourTransactionCommit();
 
 	g_hMainWindow = GetMainWindow();
@@ -105,6 +116,7 @@ DWORD WINAPI Detach(LPVOID lpParam)
 	DetourUpdateThread(GetCurrentThread());
 	DetourDetach(&(PVOID&)RealGetForegroundWindow, HookedGetForegroundWindow);
 	DetourDetach(&(PVOID&)RealGetActiveWindow, HookedGetActiveWindow);
+	DetourDetach(&(PVOID&)RealGetFocus, HookedGetFocus);
 	DetourTransactionCommit();
 
 	if (g_hMainWindow && g_OriginalWndProc)
