@@ -104,7 +104,7 @@ public partial class CaptureWindow
             return;
         }
 
-        if (!TryGetCapturePixelPosition(e.GetPosition(CaptureImage), out var x, out var y))
+        if (!TryGetTargetClientPosition(e.GetPosition(CaptureImage), _process.MainWindowHandle, out var x, out var y))
         {
             return;
         }
@@ -123,7 +123,7 @@ public partial class CaptureWindow
         PostMessage(_process.MainWindowHandle, SetCursorOverrideMessage, enabled ? new IntPtr(1) : IntPtr.Zero, IntPtr.Zero);
     }
 
-    private bool TryGetCapturePixelPosition(Point imagePosition, out int x, out int y)
+    private bool TryGetTargetClientPosition(Point imagePosition, IntPtr hwnd, out int x, out int y)
     {
         x = 0;
         y = 0;
@@ -150,14 +150,97 @@ public partial class CaptureWindow
             return false;
         }
 
-        x = Math.Clamp((int)Math.Round(sourceX), 0, source.PixelWidth - 1);
-        y = Math.Clamp((int)Math.Round(sourceY), 0, source.PixelHeight - 1);
+        var captureX = Math.Clamp(sourceX, 0, source.PixelWidth - 1);
+        var captureY = Math.Clamp(sourceY, 0, source.PixelHeight - 1);
+
+        using var _ = new DpiAwarenessScope();
+
+        if (!TryGetCaptureClientArea(hwnd, source.PixelWidth, source.PixelHeight, out var captureClientArea, out var clientRect))
+        {
+            return false;
+        }
+
+        var captureClientWidth = captureClientArea.Right - captureClientArea.Left;
+        var captureClientHeight = captureClientArea.Bottom - captureClientArea.Top;
+        var clientWidth = clientRect.Right - clientRect.Left;
+        var clientHeight = clientRect.Bottom - clientRect.Top;
+        if (captureClientWidth <= 0 || captureClientHeight <= 0 || clientWidth <= 0 || clientHeight <= 0)
+        {
+            return false;
+        }
+
+        if (captureX < captureClientArea.Left ||
+            captureY < captureClientArea.Top ||
+            captureX >= captureClientArea.Right ||
+            captureY >= captureClientArea.Bottom)
+        {
+            return false;
+        }
+
+        x = Math.Clamp(
+            (int)Math.Round((captureX - captureClientArea.Left) * clientWidth / captureClientWidth),
+            0,
+            clientWidth - 1);
+        y = Math.Clamp(
+            (int)Math.Round((captureY - captureClientArea.Top) * clientHeight / captureClientHeight),
+            0,
+            clientHeight - 1);
         return true;
+    }
+
+    private static bool TryGetCaptureClientArea(
+        IntPtr hwnd,
+        int captureWidth,
+        int captureHeight,
+        out DoubleRect captureClientArea,
+        out NativeRect clientRect)
+    {
+        captureClientArea = default;
+        clientRect = default;
+
+        if (!TryGetCaptureBounds(hwnd, out var captureBounds) || !GetClientRect(hwnd, out clientRect))
+        {
+            return false;
+        }
+
+        var clientTopLeft = new NativePoint { X = clientRect.Left, Y = clientRect.Top };
+        var clientBottomRight = new NativePoint { X = clientRect.Right, Y = clientRect.Bottom };
+        if (!ClientToScreen(hwnd, ref clientTopLeft) || !ClientToScreen(hwnd, ref clientBottomRight))
+        {
+            return false;
+        }
+
+        var captureBoundsWidth = captureBounds.Right - captureBounds.Left;
+        var captureBoundsHeight = captureBounds.Bottom - captureBounds.Top;
+        if (captureBoundsWidth <= 0 || captureBoundsHeight <= 0)
+        {
+            return false;
+        }
+
+        captureClientArea = new DoubleRect
+        {
+            Left = (clientTopLeft.X - captureBounds.Left) * captureWidth / (double)captureBoundsWidth,
+            Top = (clientTopLeft.Y - captureBounds.Top) * captureHeight / (double)captureBoundsHeight,
+            Right = (clientBottomRight.X - captureBounds.Left) * captureWidth / (double)captureBoundsWidth,
+            Bottom = (clientBottomRight.Y - captureBounds.Top) * captureHeight / (double)captureBoundsHeight
+        };
+
+        return true;
+    }
+
+    private static bool TryGetCaptureBounds(IntPtr hwnd, out NativeRect bounds)
+    {
+        if (DwmGetWindowAttribute(hwnd, DwmwaExtendedFrameBounds, out bounds, Marshal.SizeOf<NativeRect>()) == 0)
+        {
+            return true;
+        }
+
+        return GetWindowRect(hwnd, out bounds);
     }
 
     private static IntPtr MakeLParam(int lowWord, int highWord)
     {
-        return new IntPtr((highWord << 16) | (lowWord & 0xffff));
+        return new IntPtr(unchecked((int)((ushort)lowWord | ((uint)(ushort)highWord << 16))));
     }
 
     [DllImport("user32.dll", SetLastError = true)]
@@ -165,4 +248,69 @@ public partial class CaptureWindow
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern int RegisterWindowMessage(string lpString);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool GetWindowRect(IntPtr hWnd, out NativeRect lpRect);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool GetClientRect(IntPtr hWnd, out NativeRect lpRect);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool ClientToScreen(IntPtr hWnd, ref NativePoint lpPoint);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr SetThreadDpiAwarenessContext(IntPtr dpiContext);
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmGetWindowAttribute(
+        IntPtr hwnd,
+        int dwAttribute,
+        out NativeRect pvAttribute,
+        int cbAttribute);
+
+    private const int DwmwaExtendedFrameBounds = 9;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativePoint
+    {
+        public int X;
+        public int Y;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeRect
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    private struct DoubleRect
+    {
+        public double Left;
+        public double Top;
+        public double Right;
+        public double Bottom;
+    }
+
+    private sealed class DpiAwarenessScope : IDisposable
+    {
+        private static readonly IntPtr PerMonitorAwareV2 = new(-4);
+
+        private readonly IntPtr _previousContext;
+
+        public DpiAwarenessScope()
+        {
+            _previousContext = SetThreadDpiAwarenessContext(PerMonitorAwareV2);
+        }
+
+        public void Dispose()
+        {
+            if (_previousContext != IntPtr.Zero)
+            {
+                SetThreadDpiAwarenessContext(_previousContext);
+            }
+        }
+    }
 }
