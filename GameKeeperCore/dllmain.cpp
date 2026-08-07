@@ -6,6 +6,7 @@
 
 WNDPROC g_OriginalWndProc = nullptr;
 HWND g_hMainWindow = nullptr;
+static const wchar_t* OriginalWndProcProperty = L"GameKeeper.OriginalWndProc";
 static LONG g_HookedCursorPosX = 0;
 static LONG g_HookedCursorPosY = 0;
 static LONG g_HasHookedCursorPos = FALSE;
@@ -19,6 +20,65 @@ static HWND (WINAPI*RealGetFocus)(void) = GetFocus;
 static BOOL (WINAPI*RealGetCursorPos)(LPPOINT lpPoint) = GetCursorPos;
 
 HWND GetMainWindow();
+LRESULT CALLBACK NewWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+
+WNDPROC GetOriginalWndProc(HWND hWnd)
+{
+	WNDPROC originalWndProc = (WNDPROC)GetPropW(hWnd, OriginalWndProcProperty);
+	if (originalWndProc)
+	{
+		return originalWndProc;
+	}
+
+	return g_OriginalWndProc;
+}
+
+bool SubclassWindow(HWND hWnd)
+{
+	if (!hWnd || GetPropW(hWnd, OriginalWndProcProperty))
+	{
+		return false;
+	}
+
+	SetLastError(0);
+	WNDPROC originalWndProc = (WNDPROC)SetWindowLongPtr(hWnd, GWLP_WNDPROC, (LONG_PTR)NewWndProc);
+	if (!originalWndProc && GetLastError() != 0)
+	{
+		return false;
+	}
+
+	if (!SetPropW(hWnd, OriginalWndProcProperty, (HANDLE)originalWndProc))
+	{
+		SetWindowLongPtr(hWnd, GWLP_WNDPROC, (LONG_PTR)originalWndProc);
+		return false;
+	}
+
+	return true;
+}
+
+void RestoreWindowSubclass(HWND hWnd)
+{
+	WNDPROC originalWndProc = (WNDPROC)GetPropW(hWnd, OriginalWndProcProperty);
+	if (!originalWndProc)
+	{
+		return;
+	}
+
+	SetWindowLongPtr(hWnd, GWLP_WNDPROC, (LONG_PTR)originalWndProc);
+	RemovePropW(hWnd, OriginalWndProcProperty);
+}
+
+BOOL CALLBACK SubclassChildWindowsProc(HWND hWnd, LPARAM lParam)
+{
+	SubclassWindow(hWnd);
+	return TRUE;
+}
+
+BOOL CALLBACK RestoreChildWindowsProc(HWND hWnd, LPARAM lParam)
+{
+	RestoreWindowSubclass(hWnd);
+	return TRUE;
+}
 
 void UpdateHookedCursorPos(HWND hWnd, LPARAM lParam)
 {
@@ -40,6 +100,36 @@ void UpdateHookedCursorPos(HWND hWnd, LPARAM lParam)
 	InterlockedExchange(&g_HookedCursorPosX, point.x);
 	InterlockedExchange(&g_HookedCursorPosY, point.y);
 	InterlockedExchange(&g_HasHookedCursorPos, TRUE);
+}
+
+bool IsHookedCursorInsideClient(HWND hWnd)
+{
+	if (InterlockedCompareExchange(&g_EnableHookedCursorPos, TRUE, TRUE) != TRUE ||
+		InterlockedCompareExchange(&g_HasHookedCursorPos, TRUE, TRUE) != TRUE)
+	{
+		return false;
+	}
+
+	POINT point = {
+		InterlockedCompareExchange(&g_HookedCursorPosX, 0, 0),
+		InterlockedCompareExchange(&g_HookedCursorPosY, 0, 0)
+	};
+
+	if (!ScreenToClient(hWnd, &point))
+	{
+		return false;
+	}
+
+	RECT clientRect = {};
+	if (!GetClientRect(hWnd, &clientRect))
+	{
+		return false;
+	}
+
+	return point.x >= clientRect.left &&
+		point.y >= clientRect.top &&
+		point.x < clientRect.right &&
+		point.y < clientRect.bottom;
 }
 
 void SetHookedCursorPosEnabled(BOOL enabled)
@@ -107,6 +197,17 @@ LRESULT CALLBACK NewWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		UpdateHookedCursorPos(hWnd, lParam);
 	}
 
+	if (uMsg == WM_MOUSELEAVE && IsHookedCursorInsideClient(hWnd))
+	{
+		return 0;
+	}
+
+	WNDPROC originalWndProc = GetOriginalWndProc(hWnd);
+	if (!originalWndProc)
+	{
+		return DefWindowProc(hWnd, uMsg, wParam, lParam);
+	}
+
 	if (uMsg == WM_ACTIVATE)
 	{
 		if (LOWORD(wParam) == WA_INACTIVE) return 0;
@@ -121,10 +222,10 @@ LRESULT CALLBACK NewWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	}
 	else if (uMsg == WM_NCACTIVATE)
 	{
-		if (wParam == FALSE) return CallWindowProc(g_OriginalWndProc, hWnd, uMsg, TRUE, lParam);
+		if (wParam == FALSE) return CallWindowProc(originalWndProc, hWnd, uMsg, TRUE, lParam);
 	}
 
-	return CallWindowProc(g_OriginalWndProc, hWnd, uMsg, wParam, lParam);
+	return CallWindowProc(originalWndProc, hWnd, uMsg, wParam, lParam);
 }
 
 BOOL CALLBACK EnumWindowsProc(HWND hWnd, LPARAM lParam)
@@ -165,11 +266,9 @@ DWORD WINAPI Attach(LPVOID lpParam)
 	g_hMainWindow = GetMainWindow();
 	if (g_hMainWindow)
 	{
-#ifdef _WIN64
-		g_OriginalWndProc = (WNDPROC)SetWindowLongPtr(g_hMainWindow, GWLP_WNDPROC, (LONG_PTR)NewWndProc);
-#else
-		g_OriginalWndProc = (WNDPROC)SetWindowLong(g_hMainWindow, GWL_WNDPROC, (LONG)NewWndProc);
-#endif
+		SubclassWindow(g_hMainWindow);
+		g_OriginalWndProc = GetOriginalWndProc(g_hMainWindow);
+		EnumChildWindows(g_hMainWindow, SubclassChildWindowsProc, 0);
 	}
 
 	return 0;
@@ -188,11 +287,8 @@ DWORD WINAPI Detach(LPVOID lpParam)
 
 	if (g_hMainWindow && g_OriginalWndProc)
 	{
-#ifdef _WIN64
-		SetWindowLongPtr(g_hMainWindow, GWLP_WNDPROC, (LONG_PTR)g_OriginalWndProc);
-#else
-		SetWindowLong(g_hMainWindow, GWL_WNDPROC, (LONG)g_OriginalWndProc);
-#endif
+		EnumChildWindows(g_hMainWindow, RestoreChildWindowsProc, 0);
+		RestoreWindowSubclass(g_hMainWindow);
 		g_OriginalWndProc = nullptr;
 		g_hMainWindow = nullptr;
 		SetHookedCursorPosEnabled(FALSE);

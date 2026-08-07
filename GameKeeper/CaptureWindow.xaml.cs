@@ -21,11 +21,13 @@ public partial class CaptureWindow
 
     private readonly Process _process;
     private WindowCaptureService? _captureService;
+    private IntPtr _lastMouseMoveTarget;
     private IntPtr _mouseCaptureTarget;
 
     private const int WmLButtonDown = 0x0201;
     private const int WmLButtonUp = 0x0202;
     private const int WmMouseMove = 0x0200;
+    private const int WmMouseLeave = 0x02A3;
     private const int MkLButton = 0x0001;
     private static readonly int SetCursorOverrideMessage = RegisterWindowMessage("GameKeeper.SetCursorOverride");
 
@@ -107,6 +109,7 @@ public partial class CaptureWindow
 
         if (!TryGetMainClientPosition(e.GetPosition(CaptureImage), _process.MainWindowHandle, out var mainClientX, out var mainClientY))
         {
+            ClearLastMouseMoveTarget();
             return;
         }
 
@@ -134,21 +137,36 @@ public partial class CaptureWindow
             return;
         }
 
-        if (message == WmMouseMove && targetHwnd != _process.MainWindowHandle)
+        if (message == WmMouseMove && _lastMouseMoveTarget != IntPtr.Zero && _lastMouseMoveTarget != targetHwnd)
         {
-            PostMessage(
-                _process.MainWindowHandle,
-                WmMouseMove,
-                new IntPtr(buttonState),
-                MakeLParam(mainClientX, mainClientY));
+            PostMessage(targetHwnd, message, new IntPtr(buttonState), MakeLParam(x, y));
+            PostMessage(_lastMouseMoveTarget, WmMouseLeave, IntPtr.Zero, IntPtr.Zero);
+            _lastMouseMoveTarget = targetHwnd;
+            return;
         }
 
         PostMessage(targetHwnd, message, new IntPtr(buttonState), MakeLParam(x, y));
+
+        if (message == WmMouseMove)
+        {
+            _lastMouseMoveTarget = targetHwnd;
+        }
 
         if (message == WmLButtonUp)
         {
             _mouseCaptureTarget = IntPtr.Zero;
         }
+    }
+
+    private void ClearLastMouseMoveTarget()
+    {
+        if (_lastMouseMoveTarget == IntPtr.Zero)
+        {
+            return;
+        }
+
+        PostMessage(_lastMouseMoveTarget, WmMouseLeave, IntPtr.Zero, IntPtr.Zero);
+        _lastMouseMoveTarget = IntPtr.Zero;
     }
 
     private void SetTargetCursorOverride(bool enabled)
