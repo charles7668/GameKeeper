@@ -111,13 +111,66 @@ bool GK_TryAttach(DWORD dwProcessId, const char* dllPath)
 
 bool GK_TryDetach(DWORD dwProcessId, const char* dllPath)
 {
-	return RunRemoteAction(dwProcessId, dllPath, "Detach", "_Detach@4");
+	if (!RunRemoteAction(dwProcessId, dllPath, "Detach", "_Detach@4"))
+	{
+		return false;
+	}
+
+	HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, dwProcessId);
+	if (!hProcess)
+	{
+		return false;
+	}
+
+	HMODULE hKernel32 = GetModuleHandleA("kernel32.dll");
+	auto pFreeLibrary = reinterpret_cast<LPTHREAD_START_ROUTINE>(GetProcAddress(hKernel32, "FreeLibrary"));
+	if (!pFreeLibrary)
+	{
+		CloseHandle(hProcess);
+		return false;
+	}
+
+	bool unloaded = false;
+	for (int i = 0; i < 8; i++)
+	{
+		HMODULE hRemoteModule = GetRemoteModuleHandle(dwProcessId);
+		if (!hRemoteModule)
+		{
+			unloaded = true;
+			break;
+		}
+
+		HANDLE hThread = CreateRemoteThread(hProcess, nullptr, 0, pFreeLibrary, hRemoteModule, 0, nullptr);
+		if (!hThread)
+		{
+			break;
+		}
+
+		WaitForSingleObject(hThread, INFINITE);
+		DWORD exitCode = 0;
+		GetExitCodeThread(hThread, &exitCode);
+		CloseHandle(hThread);
+
+		if (exitCode == 0)
+		{
+			break;
+		}
+	}
+
+	CloseHandle(hProcess);
+	return unloaded || GetRemoteModuleHandle(dwProcessId) == nullptr;
 }
 
 #include <cstdio>
 
 bool GK_InjectCoreDll(DWORD dwProcessId, const char* dllPath)
 {
+	if (GetRemoteModuleHandle(dwProcessId))
+	{
+		fprintf(stderr, "GameKeeperCore is already loaded\n");
+		return true;
+	}
+
 	HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, dwProcessId);
 	if (!hProcess)
 	{
