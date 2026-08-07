@@ -92,6 +92,37 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    public bool DetachAll()
+    {
+        var failures = new List<string>();
+
+        foreach (var process in AttachedProcesses.ToList())
+        {
+            var result = _gameKeeperService.Detach(process.Id);
+            if (result.Success)
+            {
+                AttachedProcesses.Remove(process);
+            }
+            else
+            {
+                failures.Add($"{process.ProcessName} ({process.Id}): {result.ErrorMessage}");
+            }
+        }
+
+        if (failures.Count == 0)
+        {
+            return true;
+        }
+
+        MessageBox.Show(
+            string.Join(Environment.NewLine, failures),
+            "Detach Failed",
+            MessageBoxButton.OK,
+            MessageBoxImage.Error);
+
+        return false;
+    }
+
     [RelayCommand]
     private void Refresh()
     {
