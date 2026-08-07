@@ -6,7 +6,7 @@
         Icon="Assets/icon.ico">
     <Grid>
         <Image x:Name="CaptureImage"
-               Stretch="Uniform"
+               Stretch="Fill"
                SnapsToDevicePixels="True"
                UseLayoutRounding="True" />
         <Border x:Name="StatusOverlay"

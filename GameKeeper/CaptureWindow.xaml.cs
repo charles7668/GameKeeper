@@ -262,13 +262,8 @@ public partial class CaptureWindow
             return false;
         }
 
-        var scale = Math.Min(CaptureImage.ActualWidth / source.PixelWidth, CaptureImage.ActualHeight / source.PixelHeight);
-        var displayedWidth = source.PixelWidth * scale;
-        var displayedHeight = source.PixelHeight * scale;
-        var offsetX = (CaptureImage.ActualWidth - displayedWidth) / 2;
-        var offsetY = (CaptureImage.ActualHeight - displayedHeight) / 2;
-        var sourceX = (imagePosition.X - offsetX) / scale;
-        var sourceY = (imagePosition.Y - offsetY) / scale;
+        var sourceX = imagePosition.X * source.PixelWidth / CaptureImage.ActualWidth;
+        var sourceY = imagePosition.Y * source.PixelHeight / CaptureImage.ActualHeight;
 
         if (sourceX < 0 || sourceY < 0 || sourceX >= source.PixelWidth || sourceY >= source.PixelHeight)
         {
