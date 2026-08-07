@@ -16,6 +16,10 @@ public partial class CaptureWindow
         Title = $"{process.ProcessName} ({process.Id}) - Capture";
         CaptureImage.MouseLeftButtonDown += OnCaptureImageMouseLeftButtonDown;
         CaptureImage.MouseLeftButtonUp += OnCaptureImageMouseLeftButtonUp;
+        CaptureImage.MouseRightButtonDown += OnCaptureImageMouseRightButtonDown;
+        CaptureImage.MouseRightButtonUp += OnCaptureImageMouseRightButtonUp;
+        CaptureImage.MouseDown += OnCaptureImageMouseDown;
+        CaptureImage.MouseUp += OnCaptureImageMouseUp;
         CaptureImage.MouseMove += OnCaptureImageMouseMove;
     }
 
@@ -26,9 +30,15 @@ public partial class CaptureWindow
 
     private const int WmLButtonDown = 0x0201;
     private const int WmLButtonUp = 0x0202;
+    private const int WmRButtonDown = 0x0204;
+    private const int WmRButtonUp = 0x0205;
+    private const int WmMButtonDown = 0x0207;
+    private const int WmMButtonUp = 0x0208;
     private const int WmMouseMove = 0x0200;
     private const int WmMouseLeave = 0x02A3;
     private const int MkLButton = 0x0001;
+    private const int MkRButton = 0x0002;
+    private const int MkMButton = 0x0010;
     private static readonly int SetCursorOverrideMessage = RegisterWindowMessage("GameKeeper.SetCursorOverride");
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -81,25 +91,62 @@ public partial class CaptureWindow
     private void OnCaptureImageMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         CaptureImage.CaptureMouse();
-        ForwardLeftButtonMessage(e, WmLButtonDown, MkLButton);
+        ForwardMouseMessage(e, WmLButtonDown, GetMouseKeyState(e));
         e.Handled = true;
     }
 
     private void OnCaptureImageMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
-        ForwardLeftButtonMessage(e, WmLButtonUp, 0);
+        ForwardMouseMessage(e, WmLButtonUp, GetMouseKeyState(e, MouseButton.Left));
+        CaptureImage.ReleaseMouseCapture();
+        e.Handled = true;
+    }
+
+    private void OnCaptureImageMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        CaptureImage.CaptureMouse();
+        ForwardMouseMessage(e, WmRButtonDown, GetMouseKeyState(e));
+        e.Handled = true;
+    }
+
+    private void OnCaptureImageMouseRightButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        ForwardMouseMessage(e, WmRButtonUp, GetMouseKeyState(e, MouseButton.Right));
+        CaptureImage.ReleaseMouseCapture();
+        e.Handled = true;
+    }
+
+    private void OnCaptureImageMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton != MouseButton.Middle)
+        {
+            return;
+        }
+
+        CaptureImage.CaptureMouse();
+        ForwardMouseMessage(e, WmMButtonDown, GetMouseKeyState(e));
+        e.Handled = true;
+    }
+
+    private void OnCaptureImageMouseUp(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton != MouseButton.Middle)
+        {
+            return;
+        }
+
+        ForwardMouseMessage(e, WmMButtonUp, GetMouseKeyState(e, MouseButton.Middle));
         CaptureImage.ReleaseMouseCapture();
         e.Handled = true;
     }
 
     private void OnCaptureImageMouseMove(object sender, MouseEventArgs e)
     {
-        var buttonState = e.LeftButton == MouseButtonState.Pressed ? MkLButton : 0;
-        ForwardLeftButtonMessage(e, WmMouseMove, buttonState);
+        ForwardMouseMessage(e, WmMouseMove, GetMouseKeyState(e));
         e.Handled = true;
     }
 
-    private void ForwardLeftButtonMessage(MouseEventArgs e, int message, int buttonState)
+    private void ForwardMouseMessage(MouseEventArgs e, int message, int buttonState)
     {
         _process.Refresh();
         if (_process.HasExited || _process.MainWindowHandle == IntPtr.Zero)
@@ -121,7 +168,7 @@ public partial class CaptureWindow
             targetHwnd = _process.MainWindowHandle;
         }
 
-        if (message == WmLButtonDown)
+        if (message is WmLButtonDown or WmRButtonDown or WmMButtonDown)
         {
             _mouseCaptureTarget = targetHwnd;
         }
@@ -152,10 +199,31 @@ public partial class CaptureWindow
             _lastMouseMoveTarget = targetHwnd;
         }
 
-        if (message == WmLButtonUp)
+        if (message is WmLButtonUp or WmRButtonUp or WmMButtonUp)
         {
             _mouseCaptureTarget = IntPtr.Zero;
         }
+    }
+
+    private static int GetMouseKeyState(MouseEventArgs e, MouseButton? releasedButton = null)
+    {
+        var state = 0;
+        if (e.LeftButton == MouseButtonState.Pressed && releasedButton != MouseButton.Left)
+        {
+            state |= MkLButton;
+        }
+
+        if (e.RightButton == MouseButtonState.Pressed && releasedButton != MouseButton.Right)
+        {
+            state |= MkRButton;
+        }
+
+        if (e.MiddleButton == MouseButtonState.Pressed && releasedButton != MouseButton.Middle)
+        {
+            state |= MkMButton;
+        }
+
+        return state;
     }
 
     private void ClearLastMouseMoveTarget()
