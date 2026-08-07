@@ -3,6 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Window Capture" Height="540" Width="960"
         Background="#111111"
+        WindowStyle="None"
+        ResizeMode="CanResize"
         Icon="Assets/icon.ico">
     <Grid>
         <Image x:Name="CaptureImage"

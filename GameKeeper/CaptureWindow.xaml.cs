@@ -90,6 +90,12 @@ public partial class CaptureWindow
 
     private void OnCaptureImageMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
+        if (HandleCaptureTitleBarMouseDown(e))
+        {
+            e.Handled = true;
+            return;
+        }
+
         CaptureImage.CaptureMouse();
         ForwardMouseMessage(e, WmLButtonDown, GetMouseKeyState(e));
         e.Handled = true;
@@ -237,6 +243,106 @@ public partial class CaptureWindow
         _lastMouseMoveTarget = IntPtr.Zero;
     }
 
+    private bool HandleCaptureTitleBarMouseDown(MouseButtonEventArgs e)
+    {
+        _process.Refresh();
+        if (_process.HasExited || _process.MainWindowHandle == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        if (!TryGetCaptureTitleBarAction(e.GetPosition(CaptureImage), _process.MainWindowHandle, out var action))
+        {
+            return false;
+        }
+
+        switch (action)
+        {
+            case CaptureTitleBarAction.Close:
+                Close();
+                return true;
+            case CaptureTitleBarAction.Maximize:
+                WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+                return true;
+            case CaptureTitleBarAction.Minimize:
+                WindowState = WindowState.Minimized;
+                return true;
+            case CaptureTitleBarAction.Drag when e.ClickCount >= 2:
+                WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+                return true;
+            case CaptureTitleBarAction.Drag:
+                try
+                {
+                    DragMove();
+                }
+                catch (InvalidOperationException)
+                {
+                }
+
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private bool TryGetCaptureTitleBarAction(Point imagePosition, IntPtr hwnd, out CaptureTitleBarAction action)
+    {
+        action = CaptureTitleBarAction.None;
+
+        if (!TryGetCapturePosition(imagePosition, out var captureX, out var captureY, out var captureWidth, out var captureHeight))
+        {
+            return false;
+        }
+
+        using var _ = new DpiAwarenessScope();
+
+        if (!TryGetCaptureClientArea(hwnd, captureWidth, captureHeight, out var captureClientArea, out var unusedClientRect) ||
+            !TryGetCaptureBounds(hwnd, out var captureBounds))
+        {
+            return false;
+        }
+
+        if (captureY < 0 || captureY >= captureClientArea.Top)
+        {
+            return false;
+        }
+
+        var captureBoundsWidth = captureBounds.Right - captureBounds.Left;
+        if (captureBoundsWidth <= 0)
+        {
+            return false;
+        }
+
+        var titleButtonWidth = GetSystemMetrics(SmCxSize) * captureWidth / (double)captureBoundsWidth;
+        if (titleButtonWidth > 0)
+        {
+            var closeLeft = captureWidth - titleButtonWidth;
+            var maximizeLeft = captureWidth - titleButtonWidth * 2;
+            var minimizeLeft = captureWidth - titleButtonWidth * 3;
+
+            if (captureX >= closeLeft)
+            {
+                action = CaptureTitleBarAction.Close;
+                return true;
+            }
+
+            if (captureX >= maximizeLeft)
+            {
+                action = CaptureTitleBarAction.Maximize;
+                return true;
+            }
+
+            if (captureX >= minimizeLeft)
+            {
+                action = CaptureTitleBarAction.Minimize;
+                return true;
+            }
+        }
+
+        action = CaptureTitleBarAction.Drag;
+        return true;
+    }
+
     private void SetTargetCursorOverride(bool enabled)
     {
         _process.Refresh();
@@ -253,29 +359,14 @@ public partial class CaptureWindow
         x = 0;
         y = 0;
 
-        if (CaptureImage.Source is not BitmapSource source ||
-            CaptureImage.ActualWidth <= 0 ||
-            CaptureImage.ActualHeight <= 0 ||
-            source.PixelWidth <= 0 ||
-            source.PixelHeight <= 0)
+        if (!TryGetCapturePosition(imagePosition, out var captureX, out var captureY, out var captureWidth, out var captureHeight))
         {
             return false;
         }
-
-        var sourceX = imagePosition.X * source.PixelWidth / CaptureImage.ActualWidth;
-        var sourceY = imagePosition.Y * source.PixelHeight / CaptureImage.ActualHeight;
-
-        if (sourceX < 0 || sourceY < 0 || sourceX >= source.PixelWidth || sourceY >= source.PixelHeight)
-        {
-            return false;
-        }
-
-        var captureX = Math.Clamp(sourceX, 0, source.PixelWidth - 1);
-        var captureY = Math.Clamp(sourceY, 0, source.PixelHeight - 1);
 
         using var _ = new DpiAwarenessScope();
 
-        if (!TryGetCaptureClientArea(hwnd, source.PixelWidth, source.PixelHeight, out var captureClientArea, out var clientRect))
+        if (!TryGetCaptureClientArea(hwnd, captureWidth, captureHeight, out var captureClientArea, out var clientRect))
         {
             return false;
         }
@@ -305,6 +396,42 @@ public partial class CaptureWindow
             (int)Math.Round((captureY - captureClientArea.Top) * clientHeight / captureClientHeight),
             0,
             clientHeight - 1);
+        return true;
+    }
+
+    private bool TryGetCapturePosition(
+        Point imagePosition,
+        out double captureX,
+        out double captureY,
+        out int captureWidth,
+        out int captureHeight)
+    {
+        captureX = 0;
+        captureY = 0;
+        captureWidth = 0;
+        captureHeight = 0;
+
+        if (CaptureImage.Source is not BitmapSource source ||
+            CaptureImage.ActualWidth <= 0 ||
+            CaptureImage.ActualHeight <= 0 ||
+            source.PixelWidth <= 0 ||
+            source.PixelHeight <= 0)
+        {
+            return false;
+        }
+
+        var sourceX = imagePosition.X * source.PixelWidth / CaptureImage.ActualWidth;
+        var sourceY = imagePosition.Y * source.PixelHeight / CaptureImage.ActualHeight;
+
+        if (sourceX < 0 || sourceY < 0 || sourceX >= source.PixelWidth || sourceY >= source.PixelHeight)
+        {
+            return false;
+        }
+
+        captureX = Math.Clamp(sourceX, 0, source.PixelWidth - 1);
+        captureY = Math.Clamp(sourceY, 0, source.PixelHeight - 1);
+        captureWidth = source.PixelWidth;
+        captureHeight = source.PixelHeight;
         return true;
     }
 
@@ -438,6 +565,9 @@ public partial class CaptureWindow
     [DllImport("user32.dll")]
     private static extern IntPtr SetThreadDpiAwarenessContext(IntPtr dpiContext);
 
+    [DllImport("user32.dll")]
+    private static extern int GetSystemMetrics(int nIndex);
+
     [DllImport("dwmapi.dll")]
     private static extern int DwmGetWindowAttribute(
         IntPtr hwnd,
@@ -446,6 +576,7 @@ public partial class CaptureWindow
         int cbAttribute);
 
     private const int DwmwaExtendedFrameBounds = 9;
+    private const int SmCxSize = 30;
     private const uint CwpSkipInvisible = 0x0001;
     private const uint CwpSkipDisabled = 0x0002;
     private const uint CwpSkipTransparent = 0x0004;
@@ -473,6 +604,15 @@ public partial class CaptureWindow
         public double Top;
         public double Right;
         public double Bottom;
+    }
+
+    private enum CaptureTitleBarAction
+    {
+        None,
+        Drag,
+        Minimize,
+        Maximize,
+        Close
     }
 
     private sealed class DpiAwarenessScope : IDisposable
