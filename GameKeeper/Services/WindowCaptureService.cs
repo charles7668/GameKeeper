@@ -43,6 +43,7 @@ internal sealed class WindowCaptureService : IDisposable
     private readonly GraphicsCaptureItem _item;
     private readonly GraphicsCaptureSession _session;
     private WriteableBitmap? _bitmap;
+    private bool _hasPendingFrame;
     private bool _isDisposed;
     private bool _isProcessingFrame;
 
@@ -77,28 +78,81 @@ internal sealed class WindowCaptureService : IDisposable
     {
         lock (_frameLock)
         {
-            if (_isDisposed || _isProcessingFrame)
+            if (_isDisposed)
             {
+                return;
+            }
+
+            if (_isProcessingFrame)
+            {
+                _hasPendingFrame = true;
                 return;
             }
 
             _isProcessingFrame = true;
         }
 
+        while (true)
+        {
+            lock (_frameLock)
+            {
+                _hasPendingFrame = false;
+            }
+
+            try
+            {
+                await ProcessLatestFrameAsync(sender);
+            }
+            catch (Exception ex)
+            {
+                await Application.Current.Dispatcher.InvokeAsync(() =>
+                {
+                    if (!_isDisposed)
+                    {
+                        Failed?.Invoke(this, ex.Message);
+                    }
+                });
+            }
+
+            lock (_frameLock)
+            {
+                if (_isDisposed || !_hasPendingFrame)
+                {
+                    _isProcessingFrame = false;
+                    return;
+                }
+            }
+        }
+    }
+
+    private async Task ProcessLatestFrameAsync(Direct3D11CaptureFramePool sender)
+    {
+        Direct3D11CaptureFrame? latestFrame = null;
         try
         {
-            using var frame = sender.TryGetNextFrame();
-            if (frame == null)
+            while (true)
+            {
+                var frame = sender.TryGetNextFrame();
+                if (frame == null)
+                {
+                    break;
+                }
+
+                latestFrame?.Dispose();
+                latestFrame = frame;
+            }
+
+            if (latestFrame == null)
             {
                 return;
             }
 
-            if (frame.ContentSize.Width != _item.Size.Width || frame.ContentSize.Height != _item.Size.Height)
+            if (latestFrame.ContentSize.Width != _item.Size.Width || latestFrame.ContentSize.Height != _item.Size.Height)
             {
-                sender.Recreate(_device, DirectXPixelFormat.B8G8R8A8UIntNormalized, 2, frame.ContentSize);
+                sender.Recreate(_device, DirectXPixelFormat.B8G8R8A8UIntNormalized, 2, latestFrame.ContentSize);
             }
 
-            using var bitmap = await SoftwareBitmap.CreateCopyFromSurfaceAsync(frame.Surface);
+            using var bitmap = await SoftwareBitmap.CreateCopyFromSurfaceAsync(latestFrame.Surface);
             using var displayBitmap =
                 SoftwareBitmap.Convert(bitmap, BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied);
             var width = displayBitmap.PixelWidth;
@@ -123,22 +177,9 @@ internal sealed class WindowCaptureService : IDisposable
                 FrameReady?.Invoke(this, _bitmap);
             });
         }
-        catch (Exception ex)
-        {
-            await Application.Current.Dispatcher.InvokeAsync(() =>
-            {
-                if (!_isDisposed)
-                {
-                    Failed?.Invoke(this, ex.Message);
-                }
-            });
-        }
         finally
         {
-            lock (_frameLock)
-            {
-                _isProcessingFrame = false;
-            }
+            latestFrame?.Dispose();
         }
     }
 }
