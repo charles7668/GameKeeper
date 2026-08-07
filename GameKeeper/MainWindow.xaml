@@ -28,12 +28,18 @@
                       Margin="0,0,10,0">
                 <ComboBox.ItemTemplate>
                     <DataTemplate>
-                        <TextBlock>
-                            <Run Text="{Binding ProcessName, Mode=OneWay}" />
-                            <Run Text=" (" />
-                            <Run Text="{Binding Id, Mode=OneWay}" />
-                            <Run Text=")" />
-                        </TextBlock>
+                        <StackPanel Orientation="Horizontal">
+                            <Image Source="{Binding Icon, Mode=OneWay}"
+                                   Width="16"
+                                   Height="16"
+                                   Margin="0,0,6,0" />
+                            <TextBlock>
+                                <Run Text="{Binding ProcessName, Mode=OneWay}" />
+                                <Run Text=" (" />
+                                <Run Text="{Binding Id, Mode=OneWay}" />
+                                <Run Text=")" />
+                            </TextBlock>
+                        </StackPanel>
                     </DataTemplate>
                 </ComboBox.ItemTemplate>
             </ComboBox>
@@ -51,12 +57,18 @@
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock VerticalAlignment="Center">
-                            <Run Text="{Binding ProcessName, Mode=OneWay}" />
-                            <Run Text=" (" />
-                            <Run Text="{Binding Id, Mode=OneWay}" />
-                            <Run Text=")" />
-                        </TextBlock>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Image Source="{Binding Icon, Mode=OneWay}"
+                                   Width="16"
+                                   Height="16"
+                                   Margin="0,0,6,0" />
+                            <TextBlock VerticalAlignment="Center">
+                                <Run Text="{Binding ProcessName, Mode=OneWay}" />
+                                <Run Text=" (" />
+                                <Run Text="{Binding Id, Mode=OneWay}" />
+                                <Run Text=")" />
+                            </TextBlock>
+                        </StackPanel>
                         <Button Grid.Column="1" Content="Detach"
                                 Command="{Binding DataContext.DetachCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                 CommandParameter="{Binding}"

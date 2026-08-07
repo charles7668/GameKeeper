@@ -28,13 +28,13 @@ public partial class MainViewModel : ObservableObject
     private readonly GameKeeperService _gameKeeperService;
 
     [ObservableProperty]
-    private ObservableCollection<Process> _attachedProcesses = [];
+    private ObservableCollection<ProcessItemViewModel> _attachedProcesses = [];
 
     [ObservableProperty]
-    private ObservableCollection<Process> _processes = [];
+    private ObservableCollection<ProcessItemViewModel> _processes = [];
 
     [ObservableProperty]
-    private Process? _selectedProcess;
+    private ProcessItemViewModel? _selectedProcess;
 
     [ObservableProperty]
     private bool _isRunAsAdminVisible;
@@ -52,7 +52,7 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void Attach()
     {
-        if (SelectedProcess != null && !AttachedProcesses.Contains(SelectedProcess))
+        if (SelectedProcess != null && AttachedProcesses.All(p => p.Id != SelectedProcess.Id))
         {
             var result = _gameKeeperService.Attach(SelectedProcess.Id);
             if (result.Success)
@@ -67,19 +67,19 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void Capture(Process process)
+    private void Capture(ProcessItemViewModel process)
     {
         if (process == null)
         {
             return;
         }
 
-        var captureWindow = new CaptureWindow(process);
+        var captureWindow = new CaptureWindow(process.Process);
         captureWindow.Show();
     }
 
     [RelayCommand]
-    private void Detach(Process process)
+    private void Detach(ProcessItemViewModel process)
     {
         var result = _gameKeeperService.Detach(process.Id);
         if (result.Success)
@@ -102,7 +102,7 @@ public partial class MainViewModel : ObservableObject
 
         foreach (var p in processList)
         {
-            Processes.Add(p);
+            Processes.Add(new ProcessItemViewModel(p));
         }
     }
 
