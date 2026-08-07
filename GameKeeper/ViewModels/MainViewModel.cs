@@ -74,10 +74,7 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        var captureWindow = new CaptureWindow(process)
-        {
-            Owner = Application.Current.MainWindow
-        };
+        var captureWindow = new CaptureWindow(process);
         captureWindow.Show();
     }
 
