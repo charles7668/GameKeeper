@@ -33,7 +33,13 @@ if not exist "%OUTPUT_DIR%" (
 )
 
 REM ==============================================================================
-REM 3. Create Zip Archive
+REM 3. Remove Debug Symbols
+REM ==============================================================================
+echo [Pack] Removing PDB files from %OUTPUT_DIR%...
+del /s /q "%OUTPUT_DIR%\*.pdb" >nul 2>&1
+
+REM ==============================================================================
+REM 4. Create Zip Archive
 REM ==============================================================================
 echo [Pack] Creating archive: %ZIP_NAME%...
 
