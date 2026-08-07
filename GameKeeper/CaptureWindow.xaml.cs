@@ -21,9 +21,12 @@ public partial class CaptureWindow
         CaptureImage.MouseDown += OnCaptureImageMouseDown;
         CaptureImage.MouseUp += OnCaptureImageMouseUp;
         CaptureImage.MouseMove += OnCaptureImageMouseMove;
+        PreviewKeyDown += OnCaptureWindowPreviewKeyDown;
+        PreviewKeyUp += OnCaptureWindowPreviewKeyUp;
     }
 
     private readonly Process _process;
+    private IntPtr _keyboardTarget;
     private WindowCaptureService? _captureService;
     private IntPtr _lastMouseMoveTarget;
     private IntPtr _mouseCaptureTarget;
@@ -34,11 +37,16 @@ public partial class CaptureWindow
     private const int WmRButtonUp = 0x0205;
     private const int WmMButtonDown = 0x0207;
     private const int WmMButtonUp = 0x0208;
+    private const int WmKeyDown = 0x0100;
+    private const int WmKeyUp = 0x0101;
     private const int WmMouseMove = 0x0200;
     private const int WmMouseLeave = 0x02A3;
     private const int MkLButton = 0x0001;
     private const int MkRButton = 0x0002;
     private const int MkMButton = 0x0010;
+    private const int VkShift = 0x10;
+    private const int VkControl = 0x11;
+    private const int VkMenu = 0x12;
     private static readonly int SetCursorOverrideMessage = RegisterWindowMessage("GameKeeper.SetCursorOverride");
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -152,6 +160,22 @@ public partial class CaptureWindow
         e.Handled = true;
     }
 
+    private void OnCaptureWindowPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (ForwardKeyMessage(e, WmKeyDown))
+        {
+            e.Handled = true;
+        }
+    }
+
+    private void OnCaptureWindowPreviewKeyUp(object sender, KeyEventArgs e)
+    {
+        if (ForwardKeyMessage(e, WmKeyUp))
+        {
+            e.Handled = true;
+        }
+    }
+
     private void ForwardMouseMessage(MouseEventArgs e, int message, int buttonState)
     {
         _process.Refresh();
@@ -176,6 +200,7 @@ public partial class CaptureWindow
 
         if (message is WmLButtonDown or WmRButtonDown or WmMButtonDown)
         {
+            _keyboardTarget = targetHwnd;
             _mouseCaptureTarget = targetHwnd;
         }
 
@@ -283,6 +308,60 @@ public partial class CaptureWindow
             default:
                 return false;
         }
+    }
+
+    private bool ForwardKeyMessage(KeyEventArgs e, int message)
+    {
+        _process.Refresh();
+        if (_process.HasExited || _process.MainWindowHandle == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        var key = GetEffectiveKey(e);
+        var virtualKey = KeyInterop.VirtualKeyFromKey(key);
+        if (virtualKey <= 0)
+        {
+            return false;
+        }
+
+        var targetHwnd = _process.MainWindowHandle;
+        PostKeyMessage(targetHwnd, message, virtualKey, key);
+
+        var genericModifierKey = GetGenericModifierVirtualKey(key);
+        if (genericModifierKey > 0 && genericModifierKey != virtualKey)
+        {
+            PostKeyMessage(targetHwnd, message, genericModifierKey, key);
+        }
+
+        return true;
+    }
+
+    private static Key GetEffectiveKey(KeyEventArgs e)
+    {
+        if (e.Key == Key.System)
+        {
+            return e.SystemKey;
+        }
+
+        return e.Key == Key.ImeProcessed ? e.ImeProcessedKey : e.Key;
+    }
+
+    private static void PostKeyMessage(IntPtr targetHwnd, int message, int virtualKey, Key sourceKey)
+    {
+        var lParam = MakeKeyLParam(virtualKey, message == WmKeyUp, IsExtendedKey(sourceKey));
+        PostMessage(targetHwnd, message, new IntPtr(virtualKey), lParam);
+    }
+
+    private static int GetGenericModifierVirtualKey(Key key)
+    {
+        return key switch
+        {
+            Key.LeftCtrl or Key.RightCtrl => VkControl,
+            Key.LeftShift or Key.RightShift => VkShift,
+            Key.LeftAlt or Key.RightAlt => VkMenu,
+            _ => 0
+        };
     }
 
     private bool TryGetCaptureTitleBarAction(Point imagePosition, IntPtr hwnd, out CaptureTitleBarAction action)
@@ -541,8 +620,48 @@ public partial class CaptureWindow
         return new IntPtr(unchecked((int)((ushort)lowWord | ((uint)(ushort)highWord << 16))));
     }
 
+    private static IntPtr MakeKeyLParam(int virtualKey, bool isKeyUp, bool isExtended)
+    {
+        var scanCode = MapVirtualKey((uint)virtualKey, MapvkVkToVsc) & 0xff;
+        var value = 1 | ((int)scanCode << 16);
+        if (isExtended)
+        {
+            value |= 1 << 24;
+        }
+
+        if (isKeyUp)
+        {
+            value |= 1 << 30;
+            value |= unchecked((int)0x80000000);
+        }
+
+        return new IntPtr(value);
+    }
+
+    private static bool IsExtendedKey(Key key)
+    {
+        return key is Key.RightAlt or
+            Key.RightCtrl or
+            Key.Insert or
+            Key.Delete or
+            Key.Home or
+            Key.End or
+            Key.PageUp or
+            Key.PageDown or
+            Key.Up or
+            Key.Down or
+            Key.Left or
+            Key.Right or
+            Key.NumLock or
+            Key.PrintScreen or
+            Key.Divide;
+    }
+
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool PostMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    private static extern uint MapVirtualKey(uint uCode, uint uMapType);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern int RegisterWindowMessage(string lpString);
@@ -576,6 +695,7 @@ public partial class CaptureWindow
         int cbAttribute);
 
     private const int DwmwaExtendedFrameBounds = 9;
+    private const uint MapvkVkToVsc = 0;
     private const int SmCxSize = 30;
     private const uint CwpSkipInvisible = 0x0001;
     private const uint CwpSkipDisabled = 0x0002;
