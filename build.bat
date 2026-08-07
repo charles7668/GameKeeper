@@ -18,6 +18,27 @@ echo [Info] Found MSBuild at: %MSBUILD_PATH%
 echo.
 
 REM ==============================================================================
+REM 1.1. Read GameKeeper target framework
+REM ==============================================================================
+set "GAMEKEEPER_TARGET_FRAMEWORK="
+for /f "tokens=3 delims=<>" %%i in ('findstr /i /c:"<TargetFramework>" "GameKeeper\GameKeeper.csproj"') do (
+  set "GAMEKEEPER_TARGET_FRAMEWORK=%%i"
+)
+
+if not defined GAMEKEEPER_TARGET_FRAMEWORK (
+  echo [Error] Failed to read TargetFramework from GameKeeper\GameKeeper.csproj.
+  exit /b 1
+)
+
+echo [Info] GameKeeper target framework: %GAMEKEEPER_TARGET_FRAMEWORK%
+echo.
+
+REM ==============================================================================
+REM 1.2. Resolve GameKeeper output directory
+REM ==============================================================================
+set "GAMEKEEPER_OUTPUT_DIR=GameKeeper\bin\x86\Release\%GAMEKEEPER_TARGET_FRAMEWORK%"
+
+REM ==============================================================================
 REM 1.5. Prepare Output Directory (Clean before build)
 REM ==============================================================================
 echo [Info] Cleaning output folder...
@@ -89,7 +110,22 @@ REM ============================================================================
 
 REM 7.1 Copy Main App (GameKeeper x86)
 echo [Deploy] Copying GameKeeper (x86)...
-xcopy /Y /S /E "GameKeeper\bin\x86\Release\net8.0-windows\*" "output\" >nul
+if not exist "%GAMEKEEPER_OUTPUT_DIR%\GameKeeper.exe" (
+  set "GAMEKEEPER_OUTPUT_DIR="
+  for /d %%d in ("GameKeeper\bin\x86\Release\*") do (
+    if not defined GAMEKEEPER_OUTPUT_DIR if exist "%%~fd\GameKeeper.exe" set "GAMEKEEPER_OUTPUT_DIR=%%~fd"
+  )
+)
+if not defined GAMEKEEPER_OUTPUT_DIR (
+  echo [Error] GameKeeper x86 output not found under GameKeeper\bin\x86\Release.
+  exit /b 1
+)
+if not exist "%GAMEKEEPER_OUTPUT_DIR%\GameKeeper.exe" (
+  echo [Error] GameKeeper.exe not found in "%GAMEKEEPER_OUTPUT_DIR%".
+  exit /b 1
+)
+xcopy /Y /S /E "%GAMEKEEPER_OUTPUT_DIR%\*.*" "output\" >nul
+if %ERRORLEVEL% GEQ 2 ( echo [Error] Failed to copy GameKeeper x86 output & exit /b %ERRORLEVEL% )
 
 REM 7.2 Copy x64 Components (Manually, since GameKeeper x86 build won't copy them)
 echo [Deploy] Copying x64 components...
