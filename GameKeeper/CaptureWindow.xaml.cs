@@ -21,6 +21,7 @@ public partial class CaptureWindow
 
     private readonly Process _process;
     private WindowCaptureService? _captureService;
+    private IntPtr _mouseCaptureTarget;
 
     private const int WmLButtonDown = 0x0201;
     private const int WmLButtonUp = 0x0202;
@@ -104,12 +105,50 @@ public partial class CaptureWindow
             return;
         }
 
-        if (!TryGetTargetClientPosition(e.GetPosition(CaptureImage), _process.MainWindowHandle, out var x, out var y))
+        if (!TryGetMainClientPosition(e.GetPosition(CaptureImage), _process.MainWindowHandle, out var mainClientX, out var mainClientY))
         {
             return;
         }
 
-        PostMessage(_process.MainWindowHandle, message, new IntPtr(buttonState), MakeLParam(x, y));
+        var targetHwnd = _mouseCaptureTarget != IntPtr.Zero && message != WmMouseMove
+            ? _mouseCaptureTarget
+            : GetDeepestChildWindowFromPoint(_process.MainWindowHandle, mainClientX, mainClientY);
+        if (targetHwnd == IntPtr.Zero)
+        {
+            targetHwnd = _process.MainWindowHandle;
+        }
+
+        if (message == WmLButtonDown)
+        {
+            _mouseCaptureTarget = targetHwnd;
+        }
+
+        if (!TryConvertMainClientToTargetClient(
+                _process.MainWindowHandle,
+                targetHwnd,
+                mainClientX,
+                mainClientY,
+                out var x,
+                out var y))
+        {
+            return;
+        }
+
+        if (message == WmMouseMove && targetHwnd != _process.MainWindowHandle)
+        {
+            PostMessage(
+                _process.MainWindowHandle,
+                WmMouseMove,
+                new IntPtr(buttonState),
+                MakeLParam(mainClientX, mainClientY));
+        }
+
+        PostMessage(targetHwnd, message, new IntPtr(buttonState), MakeLParam(x, y));
+
+        if (message == WmLButtonUp)
+        {
+            _mouseCaptureTarget = IntPtr.Zero;
+        }
     }
 
     private void SetTargetCursorOverride(bool enabled)
@@ -123,7 +162,7 @@ public partial class CaptureWindow
         PostMessage(_process.MainWindowHandle, SetCursorOverrideMessage, enabled ? new IntPtr(1) : IntPtr.Zero, IntPtr.Zero);
     }
 
-    private bool TryGetTargetClientPosition(Point imagePosition, IntPtr hwnd, out int x, out int y)
+    private bool TryGetMainClientPosition(Point imagePosition, IntPtr hwnd, out int x, out int y)
     {
         x = 0;
         y = 0;
@@ -186,6 +225,57 @@ public partial class CaptureWindow
             0,
             clientHeight - 1);
         return true;
+    }
+
+    private static bool TryConvertMainClientToTargetClient(
+        IntPtr mainHwnd,
+        IntPtr targetHwnd,
+        int mainClientX,
+        int mainClientY,
+        out int targetClientX,
+        out int targetClientY)
+    {
+        targetClientX = mainClientX;
+        targetClientY = mainClientY;
+
+        if (targetHwnd == mainHwnd)
+        {
+            return true;
+        }
+
+        var point = new NativePoint { X = mainClientX, Y = mainClientY };
+        if (!ClientToScreen(mainHwnd, ref point) || !ScreenToClient(targetHwnd, ref point))
+        {
+            return false;
+        }
+
+        targetClientX = point.X;
+        targetClientY = point.Y;
+        return true;
+    }
+
+    private static IntPtr GetDeepestChildWindowFromPoint(IntPtr hwnd, int clientX, int clientY)
+    {
+        var current = hwnd;
+        var point = new NativePoint { X = clientX, Y = clientY };
+
+        while (true)
+        {
+            var child = ChildWindowFromPointEx(current, point, ChildWindowFromPointFlags);
+            if (child == IntPtr.Zero || child == current)
+            {
+                return current;
+            }
+
+            var screenPoint = point;
+            if (!ClientToScreen(current, ref screenPoint) || !ScreenToClient(child, ref screenPoint))
+            {
+                return child;
+            }
+
+            current = child;
+            point = screenPoint;
+        }
     }
 
     private static bool TryGetCaptureClientArea(
@@ -258,6 +348,12 @@ public partial class CaptureWindow
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool ClientToScreen(IntPtr hWnd, ref NativePoint lpPoint);
 
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool ScreenToClient(IntPtr hWnd, ref NativePoint lpPoint);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern IntPtr ChildWindowFromPointEx(IntPtr hWndParent, NativePoint pt, uint uFlags);
+
     [DllImport("user32.dll")]
     private static extern IntPtr SetThreadDpiAwarenessContext(IntPtr dpiContext);
 
@@ -269,6 +365,10 @@ public partial class CaptureWindow
         int cbAttribute);
 
     private const int DwmwaExtendedFrameBounds = 9;
+    private const uint CwpSkipInvisible = 0x0001;
+    private const uint CwpSkipDisabled = 0x0002;
+    private const uint CwpSkipTransparent = 0x0004;
+    private const uint ChildWindowFromPointFlags = CwpSkipInvisible | CwpSkipDisabled | CwpSkipTransparent;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct NativePoint
