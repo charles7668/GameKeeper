@@ -6,13 +6,50 @@
 
 WNDPROC g_OriginalWndProc = nullptr;
 HWND g_hMainWindow = nullptr;
+static LONG g_HookedCursorPosX = 0;
+static LONG g_HookedCursorPosY = 0;
+static LONG g_HasHookedCursorPos = FALSE;
+static LONG g_EnableHookedCursorPos = FALSE;
+static UINT g_SetCursorOverrideMessage = 0;
 
 // Function pointer for the original GetForegroundWindow
 static HWND (WINAPI*RealGetForegroundWindow)(void) = GetForegroundWindow;
 static HWND (WINAPI*RealGetActiveWindow)(void) = GetActiveWindow;
 static HWND (WINAPI*RealGetFocus)(void) = GetFocus;
+static BOOL (WINAPI*RealGetCursorPos)(LPPOINT lpPoint) = GetCursorPos;
 
 HWND GetMainWindow();
+
+void UpdateHookedCursorPos(HWND hWnd, LPARAM lParam)
+{
+	if (InterlockedCompareExchange(&g_EnableHookedCursorPos, TRUE, TRUE) != TRUE)
+	{
+		return;
+	}
+
+	POINT point = {
+		(int)(short)LOWORD(lParam),
+		(int)(short)HIWORD(lParam)
+	};
+
+	if (!ClientToScreen(hWnd, &point))
+	{
+		return;
+	}
+
+	InterlockedExchange(&g_HookedCursorPosX, point.x);
+	InterlockedExchange(&g_HookedCursorPosY, point.y);
+	InterlockedExchange(&g_HasHookedCursorPos, TRUE);
+}
+
+void SetHookedCursorPosEnabled(BOOL enabled)
+{
+	InterlockedExchange(&g_EnableHookedCursorPos, enabled ? TRUE : FALSE);
+	if (!enabled)
+	{
+		InterlockedExchange(&g_HasHookedCursorPos, FALSE);
+	}
+}
 
 // Detour function
 HWND WINAPI HookedGetForegroundWindow(void)
@@ -42,8 +79,34 @@ HWND WINAPI HookedGetFocus(void)
 	return RealGetFocus();
 }
 
+BOOL WINAPI HookedGetCursorPos(LPPOINT lpPoint)
+{
+	BOOL result = RealGetCursorPos(lpPoint);
+	if (result &&
+		lpPoint &&
+		InterlockedCompareExchange(&g_EnableHookedCursorPos, TRUE, TRUE) == TRUE &&
+		InterlockedCompareExchange(&g_HasHookedCursorPos, TRUE, TRUE) == TRUE)
+	{
+		lpPoint->x = InterlockedCompareExchange(&g_HookedCursorPosX, 0, 0);
+		lpPoint->y = InterlockedCompareExchange(&g_HookedCursorPosY, 0, 0);
+	}
+
+	return result;
+}
+
 LRESULT CALLBACK NewWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
+	if (g_SetCursorOverrideMessage != 0 && uMsg == g_SetCursorOverrideMessage)
+	{
+		SetHookedCursorPosEnabled(wParam != FALSE);
+		return 0;
+	}
+
+	if (uMsg == WM_MOUSEMOVE)
+	{
+		UpdateHookedCursorPos(hWnd, lParam);
+	}
+
 	if (uMsg == WM_ACTIVATE)
 	{
 		if (LOWORD(wParam) == WA_INACTIVE) return 0;
@@ -89,11 +152,14 @@ HWND GetMainWindow()
 
 DWORD WINAPI Attach(LPVOID lpParam)
 {
+	g_SetCursorOverrideMessage = RegisterWindowMessageW(L"GameKeeper.SetCursorOverride");
+
 	DetourTransactionBegin();
 	DetourUpdateThread(GetCurrentThread());
 	DetourAttach(&(PVOID&)RealGetForegroundWindow, HookedGetForegroundWindow);
 	DetourAttach(&(PVOID&)RealGetActiveWindow, HookedGetActiveWindow);
 	DetourAttach(&(PVOID&)RealGetFocus, HookedGetFocus);
+	DetourAttach(&(PVOID&)RealGetCursorPos, HookedGetCursorPos);
 	DetourTransactionCommit();
 
 	g_hMainWindow = GetMainWindow();
@@ -117,6 +183,7 @@ DWORD WINAPI Detach(LPVOID lpParam)
 	DetourDetach(&(PVOID&)RealGetForegroundWindow, HookedGetForegroundWindow);
 	DetourDetach(&(PVOID&)RealGetActiveWindow, HookedGetActiveWindow);
 	DetourDetach(&(PVOID&)RealGetFocus, HookedGetFocus);
+	DetourDetach(&(PVOID&)RealGetCursorPos, HookedGetCursorPos);
 	DetourTransactionCommit();
 
 	if (g_hMainWindow && g_OriginalWndProc)
@@ -128,6 +195,7 @@ DWORD WINAPI Detach(LPVOID lpParam)
 #endif
 		g_OriginalWndProc = nullptr;
 		g_hMainWindow = nullptr;
+		SetHookedCursorPosEnabled(FALSE);
 	}
 
 	return 0;
