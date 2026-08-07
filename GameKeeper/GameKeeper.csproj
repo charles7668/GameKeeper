@@ -8,6 +8,7 @@
     <UseWPF>true</UseWPF>
     <Platforms>AnyCPU;x86;x64</Platforms>
     <ApplicationIcon>Assets/icon.ico</ApplicationIcon>
+    <Version>0.1.0</Version>
   </PropertyGroup>
 
   <ItemGroup>
