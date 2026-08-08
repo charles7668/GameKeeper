@@ -20,7 +20,10 @@ static HWND (WINAPI*RealGetFocus)(void) = GetFocus;
 static BOOL (WINAPI*RealGetCursorPos)(LPPOINT lpPoint) = GetCursorPos;
 
 HWND GetMainWindow();
+bool EnsureMainWindow();
 LRESULT CALLBACK NewWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+BOOL CALLBACK SubclassChildWindowsProc(HWND hWnd, LPARAM lParam);
+BOOL CALLBACK RestoreChildWindowsProc(HWND hWnd, LPARAM lParam);
 
 WNDPROC GetOriginalWndProc(HWND hWnd)
 {
@@ -66,6 +69,78 @@ void RestoreWindowSubclass(HWND hWnd)
 
 	SetWindowLongPtr(hWnd, GWLP_WNDPROC, (LONG_PTR)originalWndProc);
 	RemovePropW(hWnd, OriginalWndProcProperty);
+}
+
+bool IsWindowInCurrentProcess(HWND hWnd)
+{
+	if (!hWnd || !IsWindow(hWnd))
+	{
+		return false;
+	}
+
+	DWORD dwProcessId = 0;
+	GetWindowThreadProcessId(hWnd, &dwProcessId);
+	return dwProcessId == GetCurrentProcessId();
+}
+
+bool IsMainWindowCandidate(HWND hWnd)
+{
+	return IsWindowInCurrentProcess(hWnd) &&
+		IsWindowVisible(hWnd) &&
+		GetWindow(hWnd, GW_OWNER) == nullptr;
+}
+
+void ClearMainWindow()
+{
+	HWND hWnd = g_hMainWindow;
+	g_hMainWindow = nullptr;
+	g_OriginalWndProc = nullptr;
+
+	if (IsWindowInCurrentProcess(hWnd))
+	{
+		EnumChildWindows(hWnd, RestoreChildWindowsProc, 0);
+		RestoreWindowSubclass(hWnd);
+	}
+}
+
+void ActivateMainWindow(HWND hWnd)
+{
+	if (!hWnd || !IsWindow(hWnd))
+	{
+		return;
+	}
+
+	SetActiveWindow(hWnd);
+	SetFocus(hWnd);
+	SendMessage(hWnd, WM_ACTIVATEAPP, TRUE, GetCurrentThreadId());
+	SendMessage(hWnd, WM_NCACTIVATE, TRUE, 0);
+	SendMessage(hWnd, WM_ACTIVATE, WA_ACTIVE, 0);
+}
+
+bool HookMainWindow(HWND hWnd)
+{
+	if (!IsMainWindowCandidate(hWnd))
+	{
+		return false;
+	}
+
+	g_hMainWindow = hWnd;
+	SubclassWindow(g_hMainWindow);
+	g_OriginalWndProc = GetOriginalWndProc(g_hMainWindow);
+	EnumChildWindows(g_hMainWindow, SubclassChildWindowsProc, 0);
+	ActivateMainWindow(g_hMainWindow);
+	return true;
+}
+
+bool EnsureMainWindow()
+{
+	if (IsMainWindowCandidate(g_hMainWindow))
+	{
+		return true;
+	}
+
+	ClearMainWindow();
+	return HookMainWindow(GetMainWindow());
 }
 
 BOOL CALLBACK SubclassChildWindowsProc(HWND hWnd, LPARAM lParam)
@@ -144,7 +219,7 @@ void SetHookedCursorPosEnabled(BOOL enabled)
 // Detour function
 HWND WINAPI HookedGetForegroundWindow(void)
 {
-	if (g_hMainWindow)
+	if (EnsureMainWindow())
 	{
 		return g_hMainWindow;
 	}
@@ -153,7 +228,7 @@ HWND WINAPI HookedGetForegroundWindow(void)
 
 HWND WINAPI HookedGetActiveWindow(void)
 {
-	if (g_hMainWindow)
+	if (EnsureMainWindow())
 	{
 		return g_hMainWindow;
 	}
@@ -162,7 +237,7 @@ HWND WINAPI HookedGetActiveWindow(void)
 
 HWND WINAPI HookedGetFocus(void)
 {
-	if (g_hMainWindow)
+	if (EnsureMainWindow())
 	{
 		return g_hMainWindow;
 	}
@@ -224,6 +299,18 @@ LRESULT CALLBACK NewWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	{
 		if (wParam == FALSE) return CallWindowProc(originalWndProc, hWnd, uMsg, TRUE, lParam);
 	}
+	else if (uMsg == WM_NCDESTROY)
+	{
+		LRESULT result = CallWindowProc(originalWndProc, hWnd, uMsg, wParam, lParam);
+		RestoreWindowSubclass(hWnd);
+		if (hWnd == g_hMainWindow)
+		{
+			g_hMainWindow = nullptr;
+			g_OriginalWndProc = nullptr;
+			SetHookedCursorPosEnabled(FALSE);
+		}
+		return result;
+	}
 
 	return CallWindowProc(originalWndProc, hWnd, uMsg, wParam, lParam);
 }
@@ -235,7 +322,7 @@ BOOL CALLBACK EnumWindowsProc(HWND hWnd, LPARAM lParam)
 
 	if (dwProcessId == GetCurrentProcessId())
 	{
-		if (GetWindow(hWnd, GW_OWNER) == nullptr && IsWindowVisible(hWnd))
+		if (IsMainWindowCandidate(hWnd))
 		{
 			*(HWND*)lParam = hWnd;
 			return FALSE;
@@ -263,13 +350,7 @@ DWORD WINAPI Attach(LPVOID lpParam)
 	DetourAttach(&(PVOID&)RealGetCursorPos, HookedGetCursorPos);
 	DetourTransactionCommit();
 
-	g_hMainWindow = GetMainWindow();
-	if (g_hMainWindow)
-	{
-		SubclassWindow(g_hMainWindow);
-		g_OriginalWndProc = GetOriginalWndProc(g_hMainWindow);
-		EnumChildWindows(g_hMainWindow, SubclassChildWindowsProc, 0);
-	}
+	EnsureMainWindow();
 
 	return 0;
 }
@@ -285,14 +366,8 @@ DWORD WINAPI Detach(LPVOID lpParam)
 	DetourDetach(&(PVOID&)RealGetCursorPos, HookedGetCursorPos);
 	DetourTransactionCommit();
 
-	if (g_hMainWindow && g_OriginalWndProc)
-	{
-		EnumChildWindows(g_hMainWindow, RestoreChildWindowsProc, 0);
-		RestoreWindowSubclass(g_hMainWindow);
-		g_OriginalWndProc = nullptr;
-		g_hMainWindow = nullptr;
-		SetHookedCursorPosEnabled(FALSE);
-	}
+	ClearMainWindow();
+	SetHookedCursorPosEnabled(FALSE);
 
 	return 0;
 }
