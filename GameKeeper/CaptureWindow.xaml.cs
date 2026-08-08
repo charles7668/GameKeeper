@@ -89,6 +89,7 @@ public partial class CaptureWindow
             SetTargetCursorOverride(true);
             ActivateTargetWindow(_process.MainWindowHandle);
             SetFocus(_process.MainWindowHandle);
+            SendTargetWindowToBottom(_process.MainWindowHandle);
         }
         catch (Exception ex)
         {
@@ -439,6 +440,18 @@ public partial class CaptureWindow
         PostMessage(_process.MainWindowHandle, SetCursorOverrideMessage, enabled ? new IntPtr(1) : IntPtr.Zero, IntPtr.Zero);
     }
 
+    private static void SendTargetWindowToBottom(IntPtr hwnd)
+    {
+        SetWindowPos(
+            hwnd,
+            HwndBottom,
+            0,
+            0,
+            0,
+            0,
+            SwpNoMove | SwpNoSize | SwpNoActivate | SwpNoOwnerZOrder | SwpAsyncWindowPos);
+    }
+
     private static void ActivateTargetWindow(IntPtr hwnd)
     {
         PostMessage(hwnd, WmActivateApp, new IntPtr(1), IntPtr.Zero);
@@ -686,6 +699,16 @@ public partial class CaptureWindow
     private static extern bool GetWindowRect(IntPtr hWnd, out NativeRect lpRect);
 
     [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetWindowPos(
+        IntPtr hWnd,
+        IntPtr hWndInsertAfter,
+        int x,
+        int y,
+        int cx,
+        int cy,
+        uint uFlags);
+
+    [DllImport("user32.dll", SetLastError = true)]
     private static extern bool GetClientRect(IntPtr hWnd, out NativeRect lpRect);
 
     [DllImport("user32.dll", SetLastError = true)]
@@ -713,10 +736,16 @@ public partial class CaptureWindow
     private const int DwmwaExtendedFrameBounds = 9;
     private const uint MapvkVkToVsc = 0;
     private const int SmCxSize = 30;
+    private static readonly IntPtr HwndBottom = new(1);
     private const uint CwpSkipInvisible = 0x0001;
     private const uint CwpSkipDisabled = 0x0002;
     private const uint CwpSkipTransparent = 0x0004;
     private const uint ChildWindowFromPointFlags = CwpSkipInvisible | CwpSkipDisabled | CwpSkipTransparent;
+    private const uint SwpNoSize = 0x0001;
+    private const uint SwpNoMove = 0x0002;
+    private const uint SwpNoActivate = 0x0010;
+    private const uint SwpNoOwnerZOrder = 0x0200;
+    private const uint SwpAsyncWindowPos = 0x4000;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct NativePoint
