@@ -18,6 +18,7 @@ static HWND (WINAPI*RealGetForegroundWindow)(void) = GetForegroundWindow;
 static HWND (WINAPI*RealGetActiveWindow)(void) = GetActiveWindow;
 static HWND (WINAPI*RealGetFocus)(void) = GetFocus;
 static BOOL (WINAPI*RealGetCursorPos)(LPPOINT lpPoint) = GetCursorPos;
+static BOOL (WINAPI*RealGetPhysicalCursorPos)(LPPOINT lpPoint) = GetPhysicalCursorPos;
 
 HWND GetMainWindow();
 bool EnsureMainWindow();
@@ -259,6 +260,21 @@ BOOL WINAPI HookedGetCursorPos(LPPOINT lpPoint)
 	return result;
 }
 
+BOOL WINAPI HookedGetPhysicalCursorPos(LPPOINT lpPoint)
+{
+	BOOL result = RealGetPhysicalCursorPos(lpPoint);
+	if (result &&
+		lpPoint &&
+		InterlockedCompareExchange(&g_EnableHookedCursorPos, TRUE, TRUE) == TRUE &&
+		InterlockedCompareExchange(&g_HasHookedCursorPos, TRUE, TRUE) == TRUE)
+	{
+		lpPoint->x = InterlockedCompareExchange(&g_HookedCursorPosX, 0, 0);
+		lpPoint->y = InterlockedCompareExchange(&g_HookedCursorPosY, 0, 0);
+	}
+
+	return result;
+}
+
 LRESULT CALLBACK NewWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	if (g_SetCursorOverrideMessage != 0 && uMsg == g_SetCursorOverrideMessage)
@@ -348,6 +364,7 @@ DWORD WINAPI Attach(LPVOID lpParam)
 	DetourAttach(&(PVOID&)RealGetActiveWindow, HookedGetActiveWindow);
 	DetourAttach(&(PVOID&)RealGetFocus, HookedGetFocus);
 	DetourAttach(&(PVOID&)RealGetCursorPos, HookedGetCursorPos);
+	DetourAttach(&(PVOID&)RealGetPhysicalCursorPos, HookedGetPhysicalCursorPos);
 	DetourTransactionCommit();
 
 	EnsureMainWindow();
@@ -364,6 +381,7 @@ DWORD WINAPI Detach(LPVOID lpParam)
 	DetourDetach(&(PVOID&)RealGetActiveWindow, HookedGetActiveWindow);
 	DetourDetach(&(PVOID&)RealGetFocus, HookedGetFocus);
 	DetourDetach(&(PVOID&)RealGetCursorPos, HookedGetCursorPos);
+	DetourDetach(&(PVOID&)RealGetPhysicalCursorPos, HookedGetPhysicalCursorPos);
 	DetourTransactionCommit();
 
 	ClearMainWindow();
